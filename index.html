@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0E0F14"/>
+  <title>Mon Budget</title>
+  <link rel="manifest" href="manifest.json"/>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{background:#0E0F14;min-height:100vh;font-family:sans-serif;}
+    #root{min-height:100vh;}
+    #splash{position:fixed;inset:0;background:#0E0F14;display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .3s}
+    #splash.hide{opacity:0;pointer-events:none}
+    #splash span{color:#4F7FFF;font-size:14px;font-family:sans-serif;}
+  </style>
+</head>
+<body>
+  <div id="splash"><span>Chargement…</span></div>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/lucide-react@0.383.0/dist/umd/lucide-react.js" crossorigin></script>
+  <script>
+var __defProp = Object.defineProperty;
+var __defProps = Object.defineProperties;
+var __getOwnPropDescs = Object.getOwnPropertyDescriptors;
+var __getOwnPropSymbols = Object.getOwnPropertySymbols;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __propIsEnum = Object.prototype.propertyIsEnumerable;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __spreadValues = (a, b) => {
+  for (var prop in b || (b = {}))
+    if (__hasOwnProp.call(b, prop))
+      __defNormalProp(a, prop, b[prop]);
+  if (__getOwnPropSymbols)
+    for (var prop of __getOwnPropSymbols(b)) {
+      if (__propIsEnum.call(b, prop))
+        __defNormalProp(a, prop, b[prop]);
+    }
+  return a;
+};
+var __spreadProps = (a, b) => __defProps(a, __getOwnPropDescs(b));
+const { useState, useEffect, useCallback, useRef } = React;
+const {
+  PlusCircle,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  BarChart3,
+  X,
+  Calendar,
+  CalendarDays,
+  Zap,
+  Hand,
+  DollarSign,
+  Download,
+  Upload,
+  Settings
+} = LucideReact;
+const windowStorage = {
+  get: async (key) => {
+    try {
+      const v = localStorage.getItem(key);
+      return v != null ? { value: v } : null;
+    } catch (e) {
+      return null;
+    }
+  },
+  set: async (key, value) => {
+    try {
+      localStorage.setItem(key, value);
+      return { key, value };
+    } catch (e) {
+      return null;
+    }
+  },
+  delete: async (key) => {
+    try {
+      localStorage.removeItem(key);
+      return { key, deleted: true };
+    } catch (e) {
+      return null;
+    }
+  }
+};
+const CATEGORIES = [
+  { id: "hypotheque", label: "\u{1F3E1} Hypoth\xE8que", color: "#4F7FFF", fixed: true },
+  { id: "ass_maison", label: "\u{1F6E1}\uFE0F Ass. Maison", color: "#7B9FFF", fixed: true },
+  { id: "hydro", label: "\u{1F4A1} Hydro", color: "#A0B4FF", fixed: true },
+  { id: "taxes", label: "\u{1F3DB}\uFE0F Taxes mun./scol.", color: "#8899DD", fixed: true },
+  { id: "ass_auto", label: "\u{1F698} Assurance auto", color: "#FF6B6B", fixed: true },
+  { id: "ass_vie", label: "\u2764\uFE0F Assurances vie", color: "#FF8FA3", fixed: true },
+  { id: "essence", label: "\u26FD Essence", color: "#FFB347" },
+  { id: "cell", label: "\u{1F4F1} Cell", color: "#00C8FF", fixed: true },
+  { id: "internet", label: "\u{1F310} Internet", color: "#00AADD", fixed: true },
+  { id: "abonnements", label: "\u{1F4FA} Abonnements", color: "#C77DFF", hasDetails: true },
+  { id: "service_garde", label: "\u{1F476} Service de garde Tom", color: "#FFC8A2", fixed: true },
+  { id: "divers_enfants", label: "\u{1F9D2} Divers enfants", color: "#FFD580" },
+  { id: "epicerie", label: "\u{1F6D2} \xC9picerie", color: "#6BCB77" },
+  { id: "cigs", label: "\u{1F6AC} Cigs", color: "#B0B0C0" },
+  { id: "sq", label: "\u{1F37A} SQ", color: "#C8A96E" },
+  { id: "divers", label: "\u{1F4E6} Divers", color: "#9CA3AF" },
+  { id: "resto", label: "\u{1F37D}\uFE0F Resto", color: "#FF8C69" },
+  { id: "fast_food", label: "\u{1F354} Fast-food", color: "#FFCC44" },
+  { id: "frais_banc", label: "\u{1F3E6} Frais bancaires", color: "#6B7280", fixed: true },
+  { id: "placements", label: "\u{1F4C8} Placements", color: "#00D4A4" },
+  { id: "amelio_maison", label: "\u{1F528} Am\xE9l. maison", color: "#F97316" },
+  { id: "fond_urgence", label: "\u{1F198} Fond d'urgence", color: "#EF4444" }
+];
+const DEFAULT_SUBS = [
+  { id: "sub_spotify", label: "Spotify" },
+  { id: "sub_disney", label: "Disney+" },
+  { id: "sub_amazon", label: "Amazon" },
+  { id: "sub_google", label: "Google" },
+  { id: "sub_crave", label: "CRAVE" }
+];
+const DEFAULT_INCOME_SOURCES = [
+  { id: "salaire", label: "\u{1F4BC} Paie", targetAmount: 1265, targetFreq: "weekly", auto: true, dayOfWeek: 4 },
+  { id: "cell_inc", label: "\u{1F4F1} Cellulaire", targetAmount: 55, targetFreq: "monthly", auto: false, dayOfWeek: 4, dayOfMonth: 1 },
+  { id: "val_loyer", label: "\u{1F3E0} Val loyer", targetAmount: 1200, targetFreq: "monthly", auto: false, dayOfWeek: 4, dayOfMonth: 1 }
+];
+const DEFAULT_BUDGETS = {
+  hypotheque: 362,
+  ass_maison: 82,
+  hydro: 209,
+  taxes: 330,
+  ass_auto: 95,
+  ass_vie: 59,
+  essence: 80,
+  // x3/mois → ~80/sem entered as weekly below
+  cell: 33,
+  internet: 84,
+  abonnements: 0,
+  // tracked per sub
+  sub_spotify: 20,
+  sub_disney: 10,
+  sub_amazon: 8,
+  sub_google: 3,
+  sub_crave: 0,
+  service_garde: 135,
+  divers_enfants: 0,
+  epicerie: 250,
+  // weekly — set via autoConfigs budgetFreq
+  cigs: 75,
+  sq: 75,
+  divers: 100,
+  resto: 50,
+  fast_food: 0,
+  frais_banc: 11,
+  placements: 0,
+  amelio_maison: 0,
+  fond_urgence: 0
+};
+const DEFAULT_AUTO_CONFIGS = {
+  hypotheque: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  ass_maison: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  hydro: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  taxes: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  ass_auto: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  ass_vie: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  cell: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  internet: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  service_garde: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  frais_banc: { mode: "auto", budgetFreq: "monthly", dayOfMonth: 1, dayOfWeek: 4 },
+  essence: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  epicerie: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  cigs: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  sq: { mode: "manual", budgetFreq: "monthly", dayOfMonth: 1 },
+  divers: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  resto: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  fast_food: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  placements: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  amelio_maison: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  fond_urgence: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 },
+  divers_enfants: { mode: "manual", budgetFreq: "weekly", dayOfWeek: 4 }
+};
+const WEEKDAYS_FR = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+const MONTHS = ["Jan", "F\xE9v", "Mar", "Avr", "Mai", "Jun", "Jul", "Ao\xFB", "Sep", "Oct", "Nov", "D\xE9c"];
+const PAY_WEEK_START_DAY = 4;
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function getPayWeekStart(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (d.getDay() - PAY_WEEK_START_DAY + 7) % 7);
+  return d;
+}
+function getWeekKey(date) {
+  return toDateStr(getPayWeekStart(date));
+}
+function getCurrentMonthKey() {
+  const n = /* @__PURE__ */ new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+}
+function getWeekOptions() {
+  const opts = [];
+  let cur = getPayWeekStart(/* @__PURE__ */ new Date());
+  for (let i = 0; i < 16; i++) {
+    const end = new Date(cur);
+    end.setDate(end.getDate() + 6);
+    opts.push({
+      key: toDateStr(cur),
+      start: toDateStr(cur),
+      end: toDateStr(end),
+      label: `${cur.getDate()} ${MONTHS[cur.getMonth()]} \u2013 ${end.getDate()} ${MONTHS[end.getMonth()]}`
+    });
+    cur = new Date(cur);
+    cur.setDate(cur.getDate() - 7);
+  }
+  return opts;
+}
+function getMonthOptions() {
+  const opts = [];
+  const now = /* @__PURE__ */ new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    opts.push({
+      key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+      label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`
+    });
+  }
+  return opts;
+}
+const CC_CYCLE_START_DAY = 23;
+function getCCCycle(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const dom = d.getDate();
+  let cycleStart, cycleEnd;
+  if (dom >= CC_CYCLE_START_DAY) {
+    cycleStart = new Date(d.getFullYear(), d.getMonth(), CC_CYCLE_START_DAY);
+    cycleEnd = new Date(d.getFullYear(), d.getMonth() + 1, 22);
+  } else {
+    cycleStart = new Date(d.getFullYear(), d.getMonth() - 1, CC_CYCLE_START_DAY);
+    cycleEnd = new Date(d.getFullYear(), d.getMonth(), 22);
+  }
+  return {
+    key: toDateStr(cycleStart),
+    start: toDateStr(cycleStart),
+    end: toDateStr(cycleEnd),
+    label: `${cycleStart.getDate()} ${MONTHS[cycleStart.getMonth()]} \u2013 ${cycleEnd.getDate()} ${MONTHS[cycleEnd.getMonth()]} ${cycleEnd.getFullYear()}`
+  };
+}
+function getPrevCCCycle(date) {
+  const cur = getCCCycle(date);
+  const dayBefore = /* @__PURE__ */ new Date(cur.start + "T00:00:00");
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  return getCCCycle(dayBefore);
+}
+function getCCCycleOptions() {
+  const opts = [];
+  const now = /* @__PURE__ */ new Date();
+  for (let i = 0; i < 13; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, CC_CYCLE_START_DAY);
+    const cycle = getCCCycle(new Date(d.getFullYear(), d.getMonth(), CC_CYCLE_START_DAY + 1));
+    if (!opts.find((o) => o.key === cycle.key)) opts.push(cycle);
+  }
+  return opts;
+}
+function formatCAD(n) {
+  return new Intl.NumberFormat("fr-CA", { style: "currency", currency: "CAD" }).format(n);
+}
+function computeAutoTransactions(autoConfigs, budgets, transactions) {
+  var _a;
+  const today = toDateStr(/* @__PURE__ */ new Date());
+  const todayDate = /* @__PURE__ */ new Date();
+  todayDate.setHours(0, 0, 0, 0);
+  const todayDOW = todayDate.getDay();
+  const todayDOM = todayDate.getDate();
+  const toAdd = [];
+  for (const [catId, cfg] of Object.entries(autoConfigs)) {
+    if (cfg.mode !== "auto") continue;
+    const amount = cfg.amount || budgets[catId] || 0;
+    if (!amount) continue;
+    let shouldFire = false;
+    const triggerFreq = cfg.budgetFreq || cfg.freq || "monthly";
+    if (triggerFreq === "monthly" && todayDOM === (cfg.dayOfMonth || 1)) shouldFire = true;
+    if (triggerFreq === "weekly" && todayDOW === ((_a = cfg.dayOfWeek) != null ? _a : 4)) shouldFire = true;
+    if (!shouldFire) continue;
+    const alreadyExists = transactions.some(
+      (t) => t.date === today && t.category === catId && t.auto === true
+    );
+    if (alreadyExists) continue;
+    const cat = CATEGORIES.find((c) => c.id === catId);
+    toAdd.push({
+      id: Date.now() + Math.random(),
+      amount,
+      category: catId,
+      subId: "",
+      note: `Auto \xB7 ${(cat == null ? void 0 : cat.label.split(" ").slice(1).join(" ")) || catId}`,
+      date: today,
+      type: "expense",
+      auto: true,
+      onCC: cfg.onCC === true,
+      isCCPayment: false
+    });
+  }
+  return toAdd;
+}
+function computeAutoIncomes(incomeSources, transactions) {
+  var _a;
+  const today = toDateStr(/* @__PURE__ */ new Date());
+  const todayDOW = (/* @__PURE__ */ new Date()).getDay();
+  const todayDOM = (/* @__PURE__ */ new Date()).getDate();
+  const toAdd = [];
+  for (const src of incomeSources) {
+    if (!src.auto || !src.targetAmount) continue;
+    let shouldFire = false;
+    if (src.targetFreq === "weekly" && todayDOW === ((_a = src.dayOfWeek) != null ? _a : 4)) shouldFire = true;
+    if (src.targetFreq === "monthly" && todayDOM === (src.dayOfMonth || 1)) shouldFire = true;
+    if (!shouldFire) continue;
+    const alreadyExists = transactions.some(
+      (t) => t.date === today && t.incomeSourceId === src.id && t.auto === true
+    );
+    if (alreadyExists) continue;
+    toAdd.push({
+      id: Date.now() + Math.random(),
+      amount: src.targetAmount,
+      category: "__income__",
+      incomeSourceId: src.id,
+      subId: "",
+      note: `Auto \xB7 ${src.label}`,
+      date: today,
+      type: "income",
+      auto: true
+    });
+  }
+  return toAdd;
+}
+function BudgetTracker() {
+  const [transactions, setTransactions] = useState([]);
+  const [budgets, setBudgets] = useState(DEFAULT_BUDGETS);
+  const [subs, setSubs] = useState(DEFAULT_SUBS);
+  const [autoConfigs, setAutoConfigs] = useState(DEFAULT_AUTO_CONFIGS);
+  const [view, setView] = useState("dashboard");
+  const [periodMode, setPeriodMode] = useState("week");
+  const [selectedWeek, setSelectedWeek] = useState(() => getWeekKey(/* @__PURE__ */ new Date()));
+  const [selectedCycle, setSelectedCycle] = useState(() => getCCCycle(/* @__PURE__ */ new Date()).key);
+  const [form, setForm] = useState(() => {
+    var _a;
+    return { amount: "", category: "epicerie", subId: "", note: "", date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], type: "expense", onCC: ((_a = DEFAULT_AUTO_CONFIGS["epicerie"]) == null ? void 0 : _a.onCC) === true, isCCPayment: false };
+  });
+  const [toast, setToast] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [incomeSources, setIncomeSources] = useState(DEFAULT_INCOME_SOURCES);
+  const [incomeEdit, setIncomeEdit] = useState(null);
+  const autoRanRef = useRef(false);
+  useEffect(() => {
+    async function load() {
+      try {
+        const [txRes, budRes, subRes, autoRes, incRes] = await Promise.all([
+          windowStorage.get("budget_transactions").catch(() => null),
+          windowStorage.get("budget_budgets").catch(() => null),
+          windowStorage.get("budget_subs").catch(() => null),
+          windowStorage.get("budget_auto").catch(() => null),
+          windowStorage.get("budget_income_sources").catch(() => null)
+        ]);
+        const txList = (txRes == null ? void 0 : txRes.value) ? JSON.parse(txRes.value) : [];
+        const budMap = (budRes == null ? void 0 : budRes.value) ? JSON.parse(budRes.value) : DEFAULT_BUDGETS;
+        const subList = (subRes == null ? void 0 : subRes.value) ? JSON.parse(subRes.value) : DEFAULT_SUBS;
+        const autoCfg = (autoRes == null ? void 0 : autoRes.value) ? JSON.parse(autoRes.value) : DEFAULT_AUTO_CONFIGS;
+        const incSrcs = (incRes == null ? void 0 : incRes.value) ? JSON.parse(incRes.value) : DEFAULT_INCOME_SOURCES;
+        setTransactions(txList);
+        setBudgets(budMap);
+        setSubs(subList);
+        setAutoConfigs(autoCfg);
+        setIncomeSources(incSrcs);
+        if (!autoRanRef.current) {
+          autoRanRef.current = true;
+          const newExpTx = computeAutoTransactions(autoCfg, budMap, txList);
+          const newIncTx = computeAutoIncomes(incSrcs, txList);
+          const newTx = [...newExpTx, ...newIncTx];
+          if (newTx.length > 0) {
+            const merged = [...newTx, ...txList];
+            setTransactions(merged);
+            await Promise.all([
+              windowStorage.set("budget_transactions", JSON.stringify(merged)),
+              windowStorage.set("budget_budgets", JSON.stringify(budMap)),
+              windowStorage.set("budget_subs", JSON.stringify(subList)),
+              windowStorage.set("budget_auto", JSON.stringify(autoCfg)),
+              windowStorage.set("budget_income_sources", JSON.stringify(incSrcs))
+            ]).catch(() => {
+            });
+            const nd = newExpTx.length, ni = newIncTx.length;
+            const parts = [];
+            if (nd) parts.push(`${nd} d\xE9pense${nd > 1 ? "s" : ""}`);
+            if (ni) parts.push(`${ni} revenu${ni > 1 ? "s" : ""}`);
+            setToast(`\u26A1 ${parts.join(" + ")} auto ajout\xE9${newTx.length > 1 ? "s" : ""}`);
+            setTimeout(() => setToast(null), 3e3);
+          }
+        }
+      } catch (e) {
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+  const save = useCallback(async (txList, budMap, subList, autoCfg, incSrcs) => {
+    try {
+      await Promise.all([
+        windowStorage.set("budget_transactions", JSON.stringify(txList)),
+        windowStorage.set("budget_budgets", JSON.stringify(budMap)),
+        windowStorage.set("budget_subs", JSON.stringify(subList)),
+        windowStorage.set("budget_auto", JSON.stringify(autoCfg)),
+        windowStorage.set("budget_income_sources", JSON.stringify(incSrcs || []))
+      ]);
+    } catch (e) {
+    }
+  }, []);
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2500);
+  }
+  function exportData() {
+    const payload = {
+      v: 1,
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      transactions,
+      budgets,
+      subs,
+      autoConfigs,
+      incomeSources
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `budget-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Export t\xE9l\xE9charg\xE9 \u2713");
+  }
+  function importData(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const d = JSON.parse(e.target.result);
+        if (!d.v || !Array.isArray(d.transactions)) {
+          showToast("Fichier invalide \u2717");
+          return;
+        }
+        const txList = d.transactions || [];
+        const budMap = d.budgets || {};
+        const subList = d.subs || DEFAULT_SUBS;
+        const autoCfg = d.autoConfigs || {};
+        const incSrcs = d.incomeSources || DEFAULT_INCOME_SOURCES;
+        setTransactions(txList);
+        setBudgets(budMap);
+        setSubs(subList);
+        setAutoConfigs(autoCfg);
+        setIncomeSources(incSrcs);
+        await save(txList, budMap, subList, autoCfg, incSrcs);
+        showToast(`Import r\xE9ussi \u2014 ${txList.length} transactions \u2713`);
+      } catch (err) {
+        showToast("Erreur import \u2717");
+      }
+    };
+    reader.readAsText(file);
+  }
+  async function clearAllData() {
+    const keys = ["budget_transactions", "budget_budgets", "budget_subs", "budget_auto", "budget_income_sources"];
+    try {
+      await Promise.all(keys.map((k) => windowStorage.delete(k).catch(() => {
+      })));
+    } catch (e) {
+    }
+    setTransactions([]);
+    setBudgets(DEFAULT_BUDGETS);
+    setSubs(DEFAULT_SUBS);
+    setAutoConfigs(DEFAULT_AUTO_CONFIGS);
+    setIncomeSources(DEFAULT_INCOME_SOURCES);
+    showToast("Cache vid\xE9 \u2014 donn\xE9es r\xE9initialis\xE9es");
+  }
+  function addTransaction() {
+    if (!form.amount || isNaN(parseFloat(form.amount))) return;
+    const tx = {
+      id: Date.now(),
+      amount: parseFloat(form.amount),
+      category: form.category,
+      subId: form.category === "abonnements" ? form.subId : "",
+      note: form.note,
+      date: form.date,
+      type: form.type,
+      auto: false,
+      onCC: form.isCCPayment ? false : form.onCC,
+      isCCPayment: form.isCCPayment || false,
+      ccCycleKey: form.isCCPayment ? getPrevCCCycle(new Date(form.date)).key : void 0
+    };
+    const updated = [tx, ...transactions];
+    setTransactions(updated);
+    save(updated, budgets, subs, autoConfigs, incomeSources);
+    setForm({ amount: "", category: "epicerie", subId: "", note: "", date: (/* @__PURE__ */ new Date()).toISOString().split("T")[0], type: "expense", onCC: false, isCCPayment: false });
+    showToast(form.type === "expense" ? "D\xE9pense ajout\xE9e \u2713" : "Revenu ajout\xE9 \u2713");
+    setView("dashboard");
+  }
+  function deleteTransaction(id) {
+    const updated = transactions.filter((t) => t.id !== id);
+    setTransactions(updated);
+    save(updated, budgets, subs, autoConfigs, incomeSources);
+    showToast("Transaction supprim\xE9e");
+  }
+  function updateBudget(id, rawVal) {
+    const val = parseFloat(rawVal) || 0;
+    const merged = __spreadProps(__spreadValues({}, budgets), { [id]: val });
+    setBudgets(merged);
+    save(transactions, merged, subs, autoConfigs, incomeSources);
+  }
+  function updateAutoField(catId, field, value) {
+    const newAuto = __spreadProps(__spreadValues({}, autoConfigs), { [catId]: __spreadProps(__spreadValues({}, autoConfigs[catId] || {}), { [field]: value }) });
+    setAutoConfigs(newAuto);
+    save(transactions, budgets, subs, newAuto, incomeSources);
+  }
+  function updateSubs(newSubs) {
+    setSubs(newSubs);
+    save(transactions, budgets, newSubs, autoConfigs, incomeSources);
+  }
+  function saveBudgets() {
+    showToast("\u2713 Tout est sauvegard\xE9");
+  }
+  function saveIncomeSources(newSrcs) {
+    setIncomeSources(newSrcs);
+    save(transactions, budgets, subs, autoConfigs, newSrcs);
+    setIncomeEdit(null);
+    showToast("Sources de revenus sauvegard\xE9es \u2713");
+  }
+  function getAutoConfig(catId) {
+    return autoConfigs[catId] || DEFAULT_AUTO_CONFIGS[catId] || { mode: "manual", budgetFreq: "monthly", freq: "monthly", dayOfMonth: 1, dayOfWeek: 4, amount: null };
+  }
+  function setAutoField(catId, field, value) {
+    updateAutoField(catId, field, value);
+  }
+  const weekOpts = getWeekOptions();
+  const ccOpts = getCCCycleOptions();
+  const curWeekOpt = weekOpts.find((w) => w.key === selectedWeek) || weekOpts[0];
+  const curCCCycle = ccOpts.find((c) => c.key === selectedCycle) || ccOpts[0];
+  function txInPeriod(tx) {
+    if (periodMode === "week") return tx.date >= curWeekOpt.start && tx.date <= curWeekOpt.end;
+    return tx.date >= curCCCycle.start && tx.date <= curCCCycle.end;
+  }
+  const periodTx = transactions.filter(txInPeriod);
+  const expenses = periodTx.filter((t) => t.type === "expense");
+  const income = periodTx.filter((t) => t.type === "income");
+  const totalExp = expenses.reduce((s, t) => s + t.amount, 0);
+  const totalInc = income.reduce((s, t) => s + t.amount, 0);
+  const balance = totalInc - totalExp;
+  const totalCC = expenses.filter((t) => t.onCC === true && !t.isCCPayment).reduce((s, t) => s + t.amount, 0);
+  const ccPaymentTx = periodTx.filter((t) => t.isCCPayment);
+  function getBudget(id) {
+    const raw = budgets[id] || 0;
+    if (!raw) return 0;
+    const cfg = autoConfigs[id] || {};
+    const catFreq = cfg.budgetFreq || "monthly";
+    if (periodMode === "week" && catFreq === "monthly") return raw / 4.33;
+    if (periodMode === "cc" && catFreq === "weekly") return raw * 4.33;
+    return raw;
+  }
+  const byCategory = CATEGORIES.map((cat) => {
+    const catTx = expenses.filter((t) => t.category === cat.id);
+    const spent = catTx.reduce((s, t) => s + t.amount, 0);
+    const budget = getBudget(cat.id);
+    const subBreakdown = cat.hasDetails ? subs.map((sub) => {
+      const subSpent = catTx.filter((t) => t.subId === sub.id).reduce((s, t) => s + t.amount, 0);
+      return __spreadProps(__spreadValues({}, sub), { spent: subSpent, budget: getBudget(sub.id) });
+    }).filter((s) => s.spent > 0 || s.budget > 0) : [];
+    return __spreadProps(__spreadValues({}, cat), { spent, budget, pct: budget > 0 ? Math.min(spent / budget * 100, 100) : 0, subBreakdown });
+  }).filter((c) => c.spent > 0 || c.budget > 0);
+  const byIncome = incomeSources.map((src) => {
+    const srcTx = income.filter((t) => {
+      var _a;
+      return t.incomeSourceId === src.id || !t.incomeSourceId && t.category === "__income__" && ((_a = t.note) == null ? void 0 : _a.includes(src.label));
+    });
+    const received = srcTx.reduce((s, t) => s + t.amount, 0);
+    const target = src.targetFreq === "weekly" && periodMode === "cc" ? src.targetAmount * 4.33 : src.targetFreq === "monthly" && periodMode === "week" ? src.targetAmount / 4.33 : src.targetAmount;
+    return __spreadProps(__spreadValues({}, src), { received, target, pct: target > 0 ? Math.min(received / target * 100, 100) : 0 });
+  });
+  const unlinkedIncome = income.filter((t) => !incomeSources.some((s) => t.incomeSourceId === s.id));
+  const totalBudgetedInc = incomeSources.reduce((s, src) => {
+    const t = src.targetFreq === "weekly" && periodMode === "cc" ? src.targetAmount * 4.33 : src.targetFreq === "monthly" && periodMode === "week" ? src.targetAmount / 4.33 : src.targetAmount;
+    return s + t;
+  }, 0);
+  const totalBudgetedExp = CATEGORIES.reduce((s, cat) => s + getBudget(cat.id), 0);
+  const budgetBalance = totalBudgetedInc - totalBudgetedExp;
+  const budgetPct = totalBudgetedInc > 0 ? Math.min(totalBudgetedExp / totalBudgetedInc * 100, 100) : 0;
+  const histTx = periodMode === "cc" ? transactions.filter((t) => t.date >= curCCCycle.start && t.date <= curCCCycle.end) : transactions.filter((t) => t.date >= curWeekOpt.start && t.date <= curWeekOpt.end);
+  const activeSubs = subs;
+  function navPrev() {
+    if (periodMode === "week") {
+      const i = weekOpts.findIndex((w) => w.key === selectedWeek);
+      if (i < weekOpts.length - 1) setSelectedWeek(weekOpts[i + 1].key);
+    } else {
+      const i = ccOpts.findIndex((c) => c.key === selectedCycle);
+      if (i < ccOpts.length - 1) setSelectedCycle(ccOpts[i + 1].key);
+    }
+  }
+  function navNext() {
+    if (periodMode === "week") {
+      const i = weekOpts.findIndex((w) => w.key === selectedWeek);
+      if (i > 0) setSelectedWeek(weekOpts[i - 1].key);
+    } else {
+      const i = ccOpts.findIndex((c) => c.key === selectedCycle);
+      if (i > 0) setSelectedCycle(ccOpts[i - 1].key);
+    }
+  }
+  const periodLabel = periodMode === "week" ? curWeekOpt.label : curCCCycle.label;
+  if (loading) return /* @__PURE__ */ React.createElement("div", { style: { background: "#0E0F14", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { color: "#6B7280", fontFamily: "'DM Sans',sans-serif" } }, "Chargement\u2026"));
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("style", null, `
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700;800&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{background:#0E0F14}
+        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#1A1B22}::-webkit-scrollbar-thumb{background:#2E2F3A;border-radius:2px}
+        .card{background:#1A1B22;border-radius:16px;border:1px solid #2A2B35}
+        input,select{font-family:'DM Sans',sans-serif;outline:none}
+        .field{background:#23242E;border:1px solid #2E2F3A;border-radius:10px;padding:12px 14px;color:#E8E9F0;font-size:14px;width:100%;transition:border .2s}
+        .field:focus{border-color:#4F7FFF}
+        .field-sm{background:#23242E;border:1px solid #2E2F3A;border-radius:8px;padding:6px 10px;color:#E8E9F0;font-size:12px;transition:border .2s}
+        .field-sm:focus{border-color:#4F7FFF}
+        .slide-up{animation:su .25s ease}
+        @keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#23242E;border:1px solid #3A3B47;border-radius:12px;padding:10px 18px;color:#E8E9F0;font-family:'DM Sans',sans-serif;font-size:13px;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:tin .2s ease;white-space:nowrap}
+        @keyframes tin{from{opacity:0;top:10px}to{opacity:1;top:20px}}
+        .bar-bg{background:#23242E;border-radius:999px;overflow:hidden;height:6px}
+        .del-btn{background:none;border:none;cursor:pointer;color:#4A4B58;padding:4px;border-radius:6px;transition:color .18s;display:flex;align-items:center}
+        .del-btn:hover{color:#FF6B6B}
+        .type-toggle{display:flex;background:#23242E;border-radius:10px;padding:3px;gap:2px}
+        .type-btn{flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .18s}
+        .mode-toggle{display:flex;background:#1A1B22;border:1px solid #2A2B35;border-radius:10px;padding:3px;gap:2px}
+        .mode-btn{flex:1;padding:7px 10px;border:none;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:5px}
+        .nav-btn{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:'DM Sans',sans-serif;font-size:11px;transition:all .2s;padding:8px 14px;border-radius:12px}
+        .auto-badge{font-size:9px;background:#FFB34722;color:#FFB347;border-radius:4px;padding:2px 6px;display:inline-flex;align-items:center;gap:3px;flex-shrink:0}
+        .sub-row{display:flex;align-items:center;padding:4px 0 4px 24px;gap:8px;border-left:2px solid #2A2B35;margin-left:12px}
+        .pnav-btn{background:none;border:1px solid #2A2B35;color:#9CA3AF;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .18s;flex-shrink:0}
+        .pnav-btn:hover{background:#23242E;color:#E8E9F0}
+        .icon-toggle{display:flex;background:#1A1B22;border:1px solid #2A2B35;border-radius:7px;padding:2px;gap:1px;flex-shrink:0}
+        .icon-opt{border:none;cursor:pointer;border-radius:5px;width:26px;height:24px;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;transition:all .15s;letter-spacing:.5px}
+        .cat-section{border-bottom:1px solid #23242E;padding:10px 0}
+        .cat-section:last-child{border-bottom:none}
+        .sched-row{display:flex;align-items:center;gap:8px;margin-top:8px;margin-left:34px;flex-wrap:wrap}
+        select option{background:#1A1B22;color:#E8E9F0}
+      `), /* @__PURE__ */ React.createElement("div", { style: { background: "#0E0F14", minHeight: "100vh", maxWidth: 430, margin: "0 auto", fontFamily: "'DM Sans',sans-serif", color: "#E8E9F0", paddingBottom: 80 } }, toast && /* @__PURE__ */ React.createElement("div", { className: "toast" }, toast), view === "dashboard" && /* @__PURE__ */ React.createElement("div", { className: "slide-up", style: { padding: "28px 16px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: "-0.5px" } }, "Mon Budget"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", marginTop: 2 } }, "Qu\xE9bec \xB7 CAD \xB7 paie jeu \u2192 mer \xB7 ", /* @__PURE__ */ React.createElement("span", { style: { color: "#4F7FFF" } }, "v1.3"))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => window.location.reload(),
+      style: { background: "#1A1B22", border: "1px solid #2A2B35", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6B7280", flexShrink: 0 },
+      title: "Recharger l'app"
+    },
+    /* @__PURE__ */ React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, /* @__PURE__ */ React.createElement("polyline", { points: "23 4 23 10 17 10" }), /* @__PURE__ */ React.createElement("polyline", { points: "1 20 1 14 7 14" }), /* @__PURE__ */ React.createElement("path", { d: "M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" }))
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => setView("settings"),
+      style: { background: "#1A1B22", border: "1px solid #2A2B35", borderRadius: 10, width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#6B7280", flexShrink: 0 }
+    },
+    /* @__PURE__ */ React.createElement(Settings, { size: 16 })
+  ))), /* @__PURE__ */ React.createElement("div", { className: "mode-toggle", style: { marginBottom: 10 } }, /* @__PURE__ */ React.createElement("button", { className: "mode-btn", style: { background: periodMode === "week" ? "#4F7FFF" : "transparent", color: periodMode === "week" ? "#fff" : "#6B7280" }, onClick: () => setPeriodMode("week") }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 13 }), " Semaine"), /* @__PURE__ */ React.createElement("button", { className: "mode-btn", style: { background: periodMode === "cc" ? "#A78BFA" : "transparent", color: periodMode === "cc" ? "#fff" : "#6B7280" }, onClick: () => setPeriodMode("cc") }, "\u{1F4B3} Cycle CC")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 16 } }, /* @__PURE__ */ React.createElement("button", { className: "pnav-btn", onClick: navPrev }, "\u2039"), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, textAlign: "center", fontSize: 13, fontWeight: 600 } }, periodLabel), /* @__PURE__ */ React.createElement("button", { className: "pnav-btn", onClick: navNext }, "\u203A")), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "20px", marginBottom: 12, background: "linear-gradient(135deg,#1A1F35 0%,#1A1B22 100%)", position: "relative", overflow: "hidden" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: -20, right: -20, width: 100, height: 100, borderRadius: "50%", background: "rgba(79,127,255,.08)" } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 } }, "Solde r\xE9el \xB7 ", periodMode === "week" ? "semaine" : "cycle CC"), /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 32, fontWeight: 800, color: balance >= 0 ? "#00D4A4" : "#FF6B6B", letterSpacing: "-1px" } }, formatCAD(balance)), (() => {
+    const ccExp = expenses.filter((t) => t.onCC === true && !t.isCCPayment).reduce((s, t) => s + t.amount, 0);
+    return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 16, marginTop: 12, marginBottom: 16, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement(TrendingUp, { size: 14, color: "#00D4A4" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "Re\xE7u"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#00D4A4" } }, formatCAD(totalInc)))), /* @__PURE__ */ React.createElement("div", { style: { width: 1, background: "#2A2B35" } }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement(TrendingDown, { size: 14, color: "#FF6B6B" }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "D\xE9pens\xE9"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#FF6B6B" } }, formatCAD(totalExp)))), ccExp > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { width: 1, background: "#2A2B35" } }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 14 } }, "\u{1F4B3}"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "Sur carte"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#A78BFA" } }, formatCAD(ccExp))))));
+  })(), /* @__PURE__ */ React.createElement("div", { style: { height: 1, background: "#2A2B35", marginBottom: 14 } }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 } }, "Balance budg\xE9t\xE9e"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 700, color: budgetBalance >= 0 ? "#00D4A4" : "#FF6B6B", letterSpacing: "-0.5px" } }, budgetBalance >= 0 ? "\u2713" : "\u26A0", " ", formatCAD(budgetBalance)), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280" } }, formatCAD(totalBudgetedExp), " / ", formatCAD(totalBudgetedInc)), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: budgetBalance >= 0 ? "#00D4A4" : "#FF6B6B", fontWeight: 600, marginTop: 1 } }, budgetBalance >= 0 ? `${(100 - budgetPct).toFixed(0)}% non allou\xE9` : `${(budgetPct - 100).toFixed(0)}% over budget`))), /* @__PURE__ */ React.createElement("div", { className: "bar-bg", style: { height: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: `${budgetPct}%`, borderRadius: 999, background: budgetBalance >= 0 ? "#4F7FFF" : "#FF6B6B", transition: "width .5s ease" } }), budgetBalance >= 0 && /* @__PURE__ */ React.createElement("div", { style: { position: "relative", marginTop: -8, marginLeft: `${budgetPct}%`, height: 8, width: `${100 - budgetPct}%`, borderRadius: "0 999px 999px 0", background: "#00D4A422" } })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 4, fontSize: 10, color: "#4A4B58" } }, /* @__PURE__ */ React.createElement("span", null, "D\xE9penses budg\xE9t\xE9es"), /* @__PURE__ */ React.createElement("span", null, "Revenus cibles"))), periodMode === "cc" && (() => {
+    const tracked = expenses.filter((t) => t.onCC === true && !t.isCCPayment).reduce((s, t) => s + t.amount, 0);
+    const paidTx = transactions.find((t) => t.isCCPayment && t.ccCycleKey === curCCCycle.key);
+    const paid = paidTx ? paidTx.amount : 0;
+    const isPaid = !!paidTx;
+    const budgeted = CATEGORIES.reduce((s, cat) => {
+      const cfg = autoConfigs[cat.id] || {};
+      if (!cfg.onCC) return s;
+      const raw = budgets[cat.id] || 0;
+      return s + (cfg.budgetFreq === "weekly" ? raw * 4.33 : raw);
+    }, 0);
+    const vsTracked = paid - tracked;
+    const vsBudget = paid - budgeted;
+    return /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "16px", marginBottom: 12, borderColor: isPaid ? "#A78BFA33" : "#A78BFA22", background: "#100A1A" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#A78BFA", textTransform: "uppercase", letterSpacing: "1px" } }, "\u{1F4B3} Carte de cr\xE9dit"), !isPaid && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#6B7280", background: "#23242E", borderRadius: 6, padding: "3px 8px" } }, "En attente de paiement"), isPaid && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#A78BFA", fontWeight: 600 } }, "Pay\xE9 le ", paidTx.date)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", marginBottom: isPaid ? 12 : 10 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "Track\xE9 CC"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: "#E8E9F0" } }, formatCAD(tracked))), /* @__PURE__ */ React.createElement("div", { style: { width: 1, background: "#2A2B35" } }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "Budget CC"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: "#6B7280" } }, formatCAD(budgeted))), isPaid && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { width: 1, background: "#2A2B35" } }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "Pay\xE9"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: "#A78BFA" } }, formatCAD(paid))))), isPaid && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 4, paddingTop: 10, borderTop: "1px solid #2A2B35" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "#6B7280" } }, "Pay\xE9 vs track\xE9"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: Math.abs(vsTracked) < 1 ? "#00D4A4" : vsTracked > 0 ? "#FF6B6B" : "#00D4A4" } }, Math.abs(vsTracked) < 1 ? "\u2713 Exact" : vsTracked > 0 ? `\u26A0 ${formatCAD(vsTracked)} non track\xE9` : `\u2713 ${formatCAD(Math.abs(vsTracked))} surplus`)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "#6B7280" } }, "Pay\xE9 vs budget"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: vsBudget <= 0 ? "#00D4A4" : "#FF6B6B" } }, vsBudget <= 0 ? `\u2713 ${formatCAD(Math.abs(vsBudget))} sous budget` : `\u26A0 ${formatCAD(vsBudget)} over`))), !isPaid && /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        onClick: () => {
+          setForm((f) => __spreadProps(__spreadValues({}, f), { isCCPayment: true, type: "expense", onCC: false, category: "paiement_cc", note: "Paiement carte de cr\xE9dit", amount: String(tracked) }));
+          setView("add");
+        },
+        style: { background: "#A78BFA", color: "#111", border: "none", borderRadius: 9, padding: "9px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", width: "100%" }
+      },
+      "Enregistrer le paiement CC \u2192"
+    ));
+  })(), (byIncome.some((s) => s.received > 0 || s.target > 0) || unlinkedIncome.length > 0) && /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "16px", marginBottom: 12, borderColor: "#00D4A420" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#00D4A4", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 12 } }, "Revenus"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } }, byIncome.filter((s) => s.received > 0 || s.target > 0).map((s) => /* @__PURE__ */ React.createElement("div", { key: s.id }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: s.target > 0 ? 4 : 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13 } }, s.label), s.auto && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, background: "#00D4A422", color: "#00D4A4", borderRadius: 3, padding: "1px 5px", display: "inline-flex", alignItems: "center", gap: 2 } }, /* @__PURE__ */ React.createElement(Zap, { size: 8 }), "auto")), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: "#00D4A4" } }, formatCAD(s.received)), s.target > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#6B7280" } }, " / ", formatCAD(s.target)))), s.target > 0 && /* @__PURE__ */ React.createElement("div", { className: "bar-bg" }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: `${s.pct}%`, borderRadius: 999, background: "#00D4A4", transition: "width .5s ease" } })))), unlinkedIncome.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "#9CA3AF" } }, "Autres revenus"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: "#00D4A4" } }, formatCAD(unlinkedIncome.reduce((s, t) => s + t.amount, 0)))))), byCategory.length > 0 && /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "16px", marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 14 } }, "Par cat\xE9gorie"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } }, byCategory.sort((a, b) => b.spent - a.spent).map((cat) => {
+    const cfg = autoConfigs[cat.id] || {};
+    return /* @__PURE__ */ React.createElement("div", { key: cat.id }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: cat.budget > 0 ? 5 : 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13 } }, cat.label), cfg.mode === "auto" && /* @__PURE__ */ React.createElement("span", { className: "auto-badge" }, /* @__PURE__ */ React.createElement(Zap, { size: 8 }), "auto"), cfg.onCC && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, background: "#F59E0B22", color: "#F59E0B", borderRadius: 3, padding: "1px 5px", flexShrink: 0 } }, "\u{1F4B3}")), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: cat.budget > 0 && cat.spent > cat.budget ? "#FF6B6B" : "#E8E9F0" } }, formatCAD(cat.spent)), cat.budget > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#6B7280" } }, " / ", formatCAD(cat.budget)))), cat.budget > 0 && /* @__PURE__ */ React.createElement("div", { className: "bar-bg" }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: `${cat.pct}%`, borderRadius: 999, background: cat.spent > cat.budget ? "#FF6B6B" : cat.color, transition: "width .5s ease" } })), cat.hasDetails && cat.subBreakdown.length > 0 && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 6 } }, cat.subBreakdown.map((sub) => /* @__PURE__ */ React.createElement("div", { key: sub.id, className: "sub-row" }, /* @__PURE__ */ React.createElement("span", { style: { flex: 1, fontSize: 12, color: "#9CA3AF" } }, sub.label), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "#C77DFF", fontWeight: 500 } }, formatCAD(sub.spent)), sub.budget > 0 && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#6B7280" } }, "/ ", formatCAD(sub.budget))))));
+  }))), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "16px" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px" } }, "R\xE9centes"), /* @__PURE__ */ React.createElement("button", { style: { background: "none", border: "none", cursor: "pointer", color: "#9CA3AF", fontSize: 13, fontFamily: "'DM Sans',sans-serif" }, onClick: () => setView("history") }, "Voir tout \u2192")), periodTx.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", color: "#4A4B58", fontSize: 13, padding: "20px 0" } }, "Aucune transaction") : periodTx.slice(0, 5).map((tx) => {
+    var _a;
+    const cat = CATEGORIES.find((c) => c.id === tx.category);
+    const incSrcD = tx.incomeSourceId ? incomeSources.find((s) => s.id === tx.incomeSourceId) : null;
+    const dEmoji = cat ? cat.label.split(" ")[0] : "\u{1F4B5}";
+    const dColor = cat ? cat.color : "#00D4A4";
+    const subLabel = tx.subId ? (_a = subs.find((s) => s.id === tx.subId)) == null ? void 0 : _a.label : null;
+    return /* @__PURE__ */ React.createElement("div", { key: tx.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: "1px solid #23242E" } }, /* @__PURE__ */ React.createElement("div", { style: { width: 36, height: 36, borderRadius: 10, background: `${dColor}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 } }, dEmoji), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, tx.note || subLabel || (incSrcD ? incSrcD.label : null) || (cat ? cat.label.split(" ").slice(1).join(" ") : "Revenu")), tx.auto && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, background: "#FFB34722", color: "#FFB347", borderRadius: 3, padding: "1px 4px", flexShrink: 0 } }, "\u26A1")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280" } }, tx.date)), /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 600, fontSize: 14, color: tx.type === "income" ? "#00D4A4" : "#E8E9F0", flexShrink: 0 } }, tx.type === "income" ? "+" : "-", formatCAD(tx.amount)));
+  }))), view === "add" && /* @__PURE__ */ React.createElement("div", { className: "slide-up", style: { padding: "28px 16px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 24 } }, "Nouvelle entr\xE9e"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } }, /* @__PURE__ */ React.createElement("div", { className: "type-toggle" }, [
+    { k: "expense", label: "\u{1F4B8} D\xE9pense" },
+    { k: "income", label: "\u{1F4B5} Revenu" },
+    { k: "cc_payment", label: "\u{1F4B3} Paiement CC" }
+  ].map((t) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: t.k,
+      className: "type-btn",
+      style: {
+        background: (t.k === "cc_payment" ? form.isCCPayment : !form.isCCPayment && form.type === t.k) ? t.k === "expense" ? "#FF6B6B" : t.k === "income" ? "#00D4A4" : "#A78BFA" : "transparent",
+        color: (t.k === "cc_payment" ? form.isCCPayment : !form.isCCPayment && form.type === t.k) ? "#fff" : "#6B7280",
+        fontSize: 12
+      },
+      onClick: () => {
+        if (t.k === "cc_payment") setForm((f) => __spreadProps(__spreadValues({}, f), { isCCPayment: true, type: "expense", onCC: false, category: "paiement_cc", note: "Paiement carte de cr\xE9dit" }));
+        else setForm((f) => __spreadProps(__spreadValues({}, f), { isCCPayment: false, type: t.k }));
+      }
+    },
+    t.label
+  ))), form.isCCPayment && (() => {
+    const refCycle = getPrevCCCycle(new Date(form.date));
+    const cycleTxs = transactions.filter((t) => t.date >= refCycle.start && t.date <= refCycle.end);
+    const tracked = cycleTxs.filter((t) => t.onCC === true && !t.isCCPayment).reduce((s, t) => s + t.amount, 0);
+    const paid = parseFloat(form.amount || 0);
+    const budgeted = CATEGORIES.reduce((s, cat) => {
+      const cfg = autoConfigs[cat.id] || {};
+      if (!cfg.onCC) return s;
+      const raw = budgets[cat.id] || 0;
+      return s + (cfg.budgetFreq === "weekly" ? raw * 4.33 : raw);
+    }, 0);
+    const vsTracked = paid - tracked;
+    const vsBudget = paid - budgeted;
+    return /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "14px", background: "#100A1A", borderColor: "#A78BFA44" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#A78BFA", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 } }, "Cycle r\xE9f\xE9renc\xE9"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#6B7280", marginBottom: 12 } }, refCycle.label), [
+      { label: "Track\xE9 CC", val: tracked, color: "#E8E9F0" },
+      { label: "Budget CC", val: budgeted, color: "#6B7280" },
+      { label: "Montant pay\xE9", val: paid > 0 ? paid : null, color: "#A78BFA" }
+    ].map((row) => /* @__PURE__ */ React.createElement("div", { key: row.label, style: { display: "flex", justifyContent: "space-between", marginBottom: 6 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, color: "#6B7280" } }, row.label), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: row.color } }, row.val != null ? formatCAD(row.val) : "\u2014"))), paid > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { height: 1, background: "#2A2B35", margin: "8px 0" } }), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 4 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "#6B7280" } }, "Pay\xE9 vs track\xE9"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: Math.abs(vsTracked) < 1 ? "#00D4A4" : vsTracked > 0 ? "#FF6B6B" : "#00D4A4" } }, Math.abs(vsTracked) < 1 ? "\u2713 Exact" : vsTracked > 0 ? `\u26A0 +${formatCAD(vsTracked)} non track\xE9` : `${formatCAD(vsTracked)} surplus`)), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between" } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "#6B7280" } }, "Pay\xE9 vs budget"), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 700, color: vsBudget <= 0 ? "#00D4A4" : "#FF6B6B" } }, vsBudget <= 0 ? `\u2713 ${formatCAD(Math.abs(vsBudget))} sous budget` : `\u26A0 +${formatCAD(vsBudget)} over`))));
+  })(), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".8px" } }, "Montant (CAD)"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      className: "field",
+      type: "number",
+      placeholder: "0.00",
+      value: form.amount,
+      onChange: (e) => setForm((f) => __spreadProps(__spreadValues({}, f), { amount: e.target.value })),
+      style: { fontSize: 22, fontWeight: 600, fontFamily: "'Syne',sans-serif" }
+    }
+  )), !form.isCCPayment && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".8px" } }, "Cat\xE9gorie"), /* @__PURE__ */ React.createElement("select", { className: "field", value: form.category, onChange: (e) => {
+    const cfg = autoConfigs[e.target.value] || {};
+    setForm((f) => __spreadProps(__spreadValues({}, f), { category: e.target.value, subId: "", onCC: cfg.onCC === true }));
+  } }, CATEGORIES.map((c) => /* @__PURE__ */ React.createElement("option", { key: c.id, value: c.id }, c.label)))), form.category === "abonnements" && /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".8px" } }, "Abonnement"), /* @__PURE__ */ React.createElement("select", { className: "field", value: form.subId, onChange: (e) => setForm((f) => __spreadProps(__spreadValues({}, f), { subId: e.target.value })) }, /* @__PURE__ */ React.createElement("option", { value: "" }, "\u2014 Choisir \u2014"), subs.map((s) => /* @__PURE__ */ React.createElement("option", { key: s.id, value: s.id }, s.label)))), form.type === "expense" && /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".8px" } }, "Paiement"), /* @__PURE__ */ React.createElement("div", { className: "icon-toggle", style: { border: form.onCC ? "1px solid #F59E0B55" : "1px solid #2A2B35" } }, /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "icon-opt",
+      title: "Comptant / d\xE9bit",
+      style: { background: !form.onCC ? "#2E2F3A" : "transparent", color: !form.onCC ? "#E8E9F0" : "#6B7280", fontSize: 12, width: 48 },
+      onClick: () => setForm((f) => __spreadProps(__spreadValues({}, f), { onCC: false }))
+    },
+    "\u{1F4B5} Cash"
+  ), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "icon-opt",
+      title: "Carte de cr\xE9dit",
+      style: { background: form.onCC ? "#F59E0B" : "transparent", color: form.onCC ? "#111" : "#6B7280", fontSize: 12, width: 48 },
+      onClick: () => setForm((f) => __spreadProps(__spreadValues({}, f), { onCC: true }))
+    },
+    "\u{1F4B3} CC"
+  )))), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".8px" } }, "Note (optionnel)"), /* @__PURE__ */ React.createElement("input", { className: "field", placeholder: form.isCCPayment ? "Paiement carte de cr\xE9dit\u2026" : "ex: \xC9picerie IGA\u2026", value: form.note, onChange: (e) => setForm((f) => __spreadProps(__spreadValues({}, f), { note: e.target.value })) })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", marginBottom: 6, textTransform: "uppercase", letterSpacing: ".8px" } }, "Date"), /* @__PURE__ */ React.createElement("input", { className: "field", type: "date", value: form.date, onChange: (e) => setForm((f) => __spreadProps(__spreadValues({}, f), { date: e.target.value })) })), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: addTransaction,
+      style: { background: form.isCCPayment ? "#A78BFA" : form.type === "expense" ? "#4F7FFF" : "#00D4A4", color: form.isCCPayment ? "#111" : "#fff", border: "none", borderRadius: 12, padding: "14px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", marginTop: 4 }
+    },
+    form.isCCPayment ? "Enregistrer le paiement CC \u2192" : "Ajouter \u2192"
+  ))), view === "history" && /* @__PURE__ */ React.createElement("div", { className: "slide-up", style: { padding: "28px 16px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800 } }, "Historique"), /* @__PURE__ */ React.createElement(
+    "select",
+    {
+      className: "field",
+      style: { width: "auto", fontSize: 13, padding: "7px 10px", background: "#1A1B22" },
+      value: periodMode === "cc" ? selectedCycle : selectedWeek,
+      onChange: (e) => {
+        if (periodMode === "cc") setSelectedCycle(e.target.value);
+        else setSelectedWeek(e.target.value);
+      }
+    },
+    (periodMode === "cc" ? ccOpts : weekOpts).map((o) => /* @__PURE__ */ React.createElement("option", { key: o.key, value: o.key }, o.label))
+  )), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "8px 16px" } }, histTx.length === 0 ? /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", color: "#4A4B58", fontSize: 13, padding: "32px 0" } }, "Aucune transaction") : histTx.map((tx) => {
+    var _a;
+    const cat = CATEGORIES.find((c) => c.id === tx.category);
+    const incSrc = tx.incomeSourceId ? incomeSources.find((s) => s.id === tx.incomeSourceId) : null;
+    const catEmoji = cat ? cat.label.split(" ")[0] : tx.type === "income" ? "\u{1F4B5}" : "\u{1F4E6}";
+    const catColor = cat ? cat.color : "#00D4A4";
+    const subLabel = tx.subId ? (_a = subs.find((s) => s.id === tx.subId)) == null ? void 0 : _a.label : null;
+    return /* @__PURE__ */ React.createElement("div", { key: tx.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid #23242E" } }, /* @__PURE__ */ React.createElement("div", { style: { width: 36, height: 36, borderRadius: 10, background: `${catColor}20`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 } }, catEmoji), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, minWidth: 0 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 5 } }, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, tx.note || subLabel || (incSrc ? incSrc.label : null) || (cat ? cat.label.split(" ").slice(1).join(" ") : "Revenu")), tx.auto && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, background: "#FFB34722", color: "#FFB347", borderRadius: 3, padding: "1px 4px", flexShrink: 0 } }, "\u26A1"), tx.isCCPayment && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, background: "#A78BFA22", color: "#A78BFA", borderRadius: 3, padding: "1px 5px", flexShrink: 0 } }, "\u{1F4B3} paiement"), !tx.isCCPayment && tx.type === "expense" && /* @__PURE__ */ React.createElement("span", { style: { fontSize: 9, background: tx.onCC ? "#F59E0B22" : "#2A2B35", color: tx.onCC ? "#F59E0B" : "#6B7280", borderRadius: 3, padding: "1px 5px", flexShrink: 0 } }, tx.onCC ? "\u{1F4B3}" : "\u{1F4B5}")), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280" } }, tx.date, subLabel ? ` \xB7 ${subLabel}` : "")), /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 600, fontSize: 14, color: tx.type === "income" ? "#00D4A4" : "#E8E9F0", flexShrink: 0 } }, tx.type === "income" ? "+" : "-", formatCAD(tx.amount)), /* @__PURE__ */ React.createElement("button", { className: "del-btn", onClick: () => deleteTransaction(tx.id) }, /* @__PURE__ */ React.createElement(Trash2, { size: 14 })));
+  }))), view === "budgets" && (() => {
+    const monthlyExpTotal = CATEGORIES.reduce((s, cat) => {
+      const raw = budgets[cat.id] || 0;
+      const cfg = autoConfigs[cat.id] || {};
+      const freq = cfg.budgetFreq || "monthly";
+      return s + (freq === "weekly" ? raw * 4.33 : raw);
+    }, 0);
+    const monthlyIncTotal = incomeSources.reduce((s, src) => {
+      return s + (src.targetFreq === "weekly" ? src.targetAmount * 4.33 : src.targetAmount);
+    }, 0);
+    const monthlyDiff = monthlyIncTotal - monthlyExpTotal;
+    const diffPct = monthlyIncTotal > 0 ? Math.min(monthlyExpTotal / monthlyIncTotal * 100, 100) : 0;
+    return /* @__PURE__ */ React.createElement("div", { className: "slide-up", style: { padding: "28px 16px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 16 } }, "Budgets & Auto"), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "16px", marginBottom: 16, borderColor: monthlyDiff >= 0 ? "#00D4A422" : "#FF6B6B22", background: monthlyDiff >= 0 ? "linear-gradient(135deg,#0D1F18 0%,#1A1B22 100%)" : "linear-gradient(135deg,#1F0D0D 0%,#1A1B22 100%)" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#6B7280", textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 } }, "Diff\xE9rentiel mensuel"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 28, fontWeight: 800, color: monthlyDiff >= 0 ? "#00D4A4" : "#FF6B6B", letterSpacing: "-0.5px" } }, monthlyDiff >= 0 ? "\u2713 " : "\u26A0 ", formatCAD(monthlyDiff), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13, fontWeight: 500, color: "#6B7280", marginLeft: 6 } }, "/mois")), /* @__PURE__ */ React.createElement("div", { style: { textAlign: "right", fontSize: 11, color: "#6B7280" } }, /* @__PURE__ */ React.createElement("div", { style: { color: monthlyDiff >= 0 ? "#00D4A4" : "#FF6B6B", fontWeight: 600, fontSize: 12 } }, (100 - diffPct).toFixed(1), "% ", monthlyDiff >= 0 ? "libre" : "over"))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 16, marginBottom: 10, flexWrap: "wrap" } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "Revenus cibles"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#00D4A4" } }, formatCAD(monthlyIncTotal))), /* @__PURE__ */ React.createElement("div", { style: { width: 1, background: "#2A2B35" } }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "D\xE9penses budg\xE9t\xE9es"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#FF6B6B" } }, formatCAD(monthlyExpTotal))), /* @__PURE__ */ React.createElement("div", { style: { width: 1, background: "#2A2B35" } }), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280" } }, "\u{1F4B3} Sur carte"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: "#A78BFA" } }, formatCAD(CATEGORIES.reduce((s, cat) => {
+      const cfg2 = autoConfigs[cat.id] || {};
+      if (!cfg2.onCC) return s;
+      const raw = budgets[cat.id] || 0;
+      return s + (cfg2.budgetFreq === "weekly" ? raw * 4.33 : raw);
+    }, 0))))), /* @__PURE__ */ React.createElement("div", { className: "bar-bg", style: { height: 7 } }, /* @__PURE__ */ React.createElement("div", { style: { height: "100%", width: `${diffPct}%`, borderRadius: 999, background: monthlyDiff >= 0 ? "#4F7FFF" : "#FF6B6B", transition: "width .5s ease" } }))), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "12px 16px", marginBottom: 12 } }, CATEGORIES.map((cat) => {
+      var _a;
+      const cfg = getAutoConfig(cat.id);
+      const isAuto = cfg.mode === "auto";
+      return /* @__PURE__ */ React.createElement("div", { key: cat.id, className: "cat-section" }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 18, width: 26, textAlign: "center", flexShrink: 0 } }, cat.label.split(" ")[0]), /* @__PURE__ */ React.createElement("div", { style: { flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, cat.label.split(" ").slice(1).join(" ")), (() => {
+        const onCC = cfg.onCC === true;
+        return /* @__PURE__ */ React.createElement(
+          "button",
+          {
+            title: onCC ? "Carte de cr\xE9dit" : "Comptant/d\xE9bit",
+            style: { background: onCC ? "#F59E0B22" : "transparent", border: `1px solid ${onCC ? "#F59E0B55" : "#2A2B35"}`, borderRadius: 7, padding: "3px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, flexShrink: 0, transition: "all .15s" },
+            onClick: () => updateAutoField(cat.id, "onCC", !onCC)
+          },
+          /* @__PURE__ */ React.createElement("span", { style: { fontSize: 13 } }, "\u{1F4B3}"),
+          /* @__PURE__ */ React.createElement("span", { style: { fontSize: 10, fontWeight: 600, color: onCC ? "#F59E0B" : "#4A4B58", fontFamily: "'DM Sans',sans-serif" } }, onCC ? "CC" : "\u2013")
+        );
+      })()), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginLeft: 34 } }, /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          className: "field-sm",
+          type: "number",
+          placeholder: "montant",
+          style: { flex: 1, textAlign: "right" },
+          value: budgets[cat.id] || "",
+          onChange: (e) => updateBudget(cat.id, e.target.value)
+        }
+      ), /* @__PURE__ */ React.createElement("div", { className: "icon-toggle" }, /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          className: "icon-opt",
+          title: "Par mois",
+          style: { background: cfg.budgetFreq !== "weekly" ? "#4F7FFF" : "transparent", color: cfg.budgetFreq !== "weekly" ? "#fff" : "#6B7280" },
+          onClick: () => setAutoField(cat.id, "budgetFreq", "monthly")
+        },
+        /* @__PURE__ */ React.createElement(Calendar, { size: 12 })
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          className: "icon-opt",
+          title: "Par semaine",
+          style: { background: cfg.budgetFreq === "weekly" ? "#4F7FFF" : "transparent", color: cfg.budgetFreq === "weekly" ? "#fff" : "#6B7280" },
+          onClick: () => setAutoField(cat.id, "budgetFreq", "weekly")
+        },
+        /* @__PURE__ */ React.createElement(CalendarDays, { size: 12 })
+      )), /* @__PURE__ */ React.createElement("div", { className: "icon-toggle", style: { border: isAuto ? "1px solid #FFB34766" : "1px solid #2A2B35" } }, /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          className: "icon-opt",
+          title: "Manuel",
+          style: { background: !isAuto ? "#2E2F3A" : "transparent", color: !isAuto ? "#E8E9F0" : "#4A4B58" },
+          onClick: () => setAutoField(cat.id, "mode", "manual")
+        },
+        /* @__PURE__ */ React.createElement(Hand, { size: 12 })
+      ), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          className: "icon-opt",
+          title: "Auto",
+          style: { background: isAuto ? "#FFB347" : "transparent", color: isAuto ? "#111" : "#6B7280" },
+          onClick: () => setAutoField(cat.id, "mode", "auto")
+        },
+        /* @__PURE__ */ React.createElement(Zap, { size: 12 })
+      ))), isAuto && /* @__PURE__ */ React.createElement("div", { className: "sched-row" }, cfg.budgetFreq !== "weekly" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#6B7280", flexShrink: 0, background: "#23242E", borderRadius: 6, padding: "4px 8px" } }, "\u{1F4C5} Mensuel \u2014 le"), /* @__PURE__ */ React.createElement(
+        "select",
+        {
+          className: "field-sm",
+          style: { width: "auto" },
+          value: cfg.dayOfMonth || 1,
+          onChange: (e) => {
+            setAutoField(cat.id, "dayOfMonth", parseInt(e.target.value));
+            setAutoField(cat.id, "freq", "monthly");
+          }
+        },
+        Array.from({ length: 28 }, (_, i) => /* @__PURE__ */ React.createElement("option", { key: i + 1, value: i + 1 }, i + 1))
+      ), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "#6B7280", flexShrink: 0 } }, "du mois")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#6B7280", flexShrink: 0, background: "#23242E", borderRadius: 6, padding: "4px 8px" } }, "\u{1F501} Hebdo \u2014 chaque"), /* @__PURE__ */ React.createElement(
+        "select",
+        {
+          className: "field-sm",
+          style: { width: "auto" },
+          value: (_a = cfg.dayOfWeek) != null ? _a : 4,
+          onChange: (e) => {
+            setAutoField(cat.id, "dayOfWeek", parseInt(e.target.value));
+            setAutoField(cat.id, "freq", "weekly");
+          }
+        },
+        WEEKDAYS_FR.map((d, i) => /* @__PURE__ */ React.createElement("option", { key: i, value: i }, d))
+      ))), cat.hasDetails && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 10, marginLeft: 34, display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 10, color: "#6B7280", textTransform: "uppercase", letterSpacing: ".8px", marginBottom: 2 } }, "D\xE9tail abonnements"), activeSubs.map((sub, idx) => /* @__PURE__ */ React.createElement("div", { key: sub.id, style: { display: "flex", alignItems: "center", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 6, height: 6, borderRadius: "50%", background: "#C77DFF", flexShrink: 0 } }), /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          className: "field-sm",
+          placeholder: "Nom",
+          style: { flex: 1 },
+          value: sub.label,
+          onChange: (e) => {
+            const next = activeSubs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { label: e.target.value }) : s);
+            updateSubs(next);
+          }
+        }
+      ), /* @__PURE__ */ React.createElement(
+        "input",
+        {
+          className: "field-sm",
+          type: "number",
+          placeholder: "0",
+          style: { width: 72, textAlign: "right" },
+          value: budgets[sub.id] || "",
+          onChange: (e) => updateBudget(sub.id, e.target.value)
+        }
+      ), /* @__PURE__ */ React.createElement("button", { className: "del-btn", onClick: () => updateSubs(activeSubs.filter((_, i) => i !== idx)) }, /* @__PURE__ */ React.createElement(X, { size: 13 })))), /* @__PURE__ */ React.createElement(
+        "button",
+        {
+          onClick: () => updateSubs([...activeSubs, { id: `sub_${Date.now()}`, label: "" }]),
+          style: { background: "none", border: "1px dashed #3A3B47", borderRadius: 8, color: "#6B7280", fontSize: 12, padding: "5px 10px", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", textAlign: "left", marginTop: 2 }
+        },
+        "+ Ajouter un abonnement"
+      )));
+    })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, marginBottom: 14, fontSize: 11, color: "#6B7280", flexWrap: "wrap", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(Calendar, { size: 11 }), " /mois"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 11 }), " /sem"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(Hand, { size: 11 }), " manuel"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4, color: "#FFB347" } }, /* @__PURE__ */ React.createElement(Zap, { size: 11 }), " auto"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } }, "\u{1F4B5} comptant"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4, color: "#A78BFA" } }, "\u{1F4B3} carte cr\xE9dit")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", fontSize: 12, color: "#4A4B58", borderRadius: 12, background: "#1A1B22", border: "1px solid #2A2B35" } }, /* @__PURE__ */ React.createElement("div", { style: { width: 7, height: 7, borderRadius: "50%", background: "#00D4A4", flexShrink: 0 } }), "Sauvegarde automatique activ\xE9e"));
+  })(), view === "revenus" && /* @__PURE__ */ React.createElement("div", { className: "slide-up", style: { padding: "28px 16px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 4 } }, "Revenus"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: "#6B7280", marginBottom: 20 } }, "Sources de revenus \xB7 montant cible \xB7 auto-saisie."), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "12px 16px", marginBottom: 12 } }, (incomeEdit !== null ? incomeEdit : incomeSources).map((src, idx) => {
+    var _a;
+    const activeSrcs = incomeEdit !== null ? incomeEdit : incomeSources;
+    return /* @__PURE__ */ React.createElement("div", { key: src.id, className: "cat-section" }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 18, flexShrink: 0 } }, src.label.split(" ")[0]), /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        className: "field-sm",
+        placeholder: "Nom de la source",
+        style: { flex: 1 },
+        value: src.label.split(" ").slice(1).join(" "),
+        onChange: (e) => {
+          const next = activeSrcs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { label: src.label.split(" ")[0] + " " + e.target.value }) : s);
+          setIncomeEdit(next);
+        }
+      }
+    ), /* @__PURE__ */ React.createElement("button", { className: "del-btn", onClick: () => setIncomeEdit(activeSrcs.filter((_, i) => i !== idx)) }, /* @__PURE__ */ React.createElement(X, { size: 14 }))), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginLeft: 34 } }, /* @__PURE__ */ React.createElement(
+      "input",
+      {
+        className: "field-sm",
+        type: "number",
+        placeholder: "montant",
+        style: { flex: 1, textAlign: "right" },
+        value: src.targetAmount || "",
+        onChange: (e) => {
+          const next = activeSrcs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { targetAmount: parseFloat(e.target.value) || 0 }) : s);
+          setIncomeEdit(next);
+        }
+      }
+    ), /* @__PURE__ */ React.createElement("div", { className: "icon-toggle" }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        className: "icon-opt",
+        title: "Par mois",
+        style: { background: src.targetFreq !== "weekly" ? "#00D4A4" : "transparent", color: src.targetFreq !== "weekly" ? "#111" : "#6B7280" },
+        onClick: () => {
+          const next = activeSrcs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { targetFreq: "monthly" }) : s);
+          setIncomeEdit(next);
+        }
+      },
+      /* @__PURE__ */ React.createElement(Calendar, { size: 12 })
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        className: "icon-opt",
+        title: "Par semaine",
+        style: { background: src.targetFreq === "weekly" ? "#00D4A4" : "transparent", color: src.targetFreq === "weekly" ? "#111" : "#6B7280" },
+        onClick: () => {
+          const next = activeSrcs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { targetFreq: "weekly" }) : s);
+          setIncomeEdit(next);
+        }
+      },
+      /* @__PURE__ */ React.createElement(CalendarDays, { size: 12 })
+    )), /* @__PURE__ */ React.createElement("div", { className: "icon-toggle", style: { border: src.auto ? "1px solid #00D4A455" : "1px solid #2A2B35" } }, /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        className: "icon-opt",
+        title: "Manuel",
+        style: { background: !src.auto ? "#2E2F3A" : "transparent", color: !src.auto ? "#E8E9F0" : "#4A4B58" },
+        onClick: () => {
+          const next = activeSrcs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { auto: false }) : s);
+          setIncomeEdit(next);
+        }
+      },
+      /* @__PURE__ */ React.createElement(Hand, { size: 12 })
+    ), /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        className: "icon-opt",
+        title: "Auto",
+        style: { background: src.auto ? "#00D4A4" : "transparent", color: src.auto ? "#111" : "#6B7280" },
+        onClick: () => {
+          const next = activeSrcs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { auto: true }) : s);
+          setIncomeEdit(next);
+        }
+      },
+      /* @__PURE__ */ React.createElement(Zap, { size: 12 })
+    ))), src.auto && /* @__PURE__ */ React.createElement("div", { className: "sched-row" }, src.targetFreq !== "weekly" ? /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#6B7280", background: "#23242E", borderRadius: 6, padding: "4px 8px", flexShrink: 0 } }, "\u{1F4C5} Mensuel \u2014 le"), /* @__PURE__ */ React.createElement(
+      "select",
+      {
+        className: "field-sm",
+        style: { width: "auto" },
+        value: src.dayOfMonth || 1,
+        onChange: (e) => {
+          const next = activeSrcs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { dayOfMonth: parseInt(e.target.value) }) : s);
+          setIncomeEdit(next);
+        }
+      },
+      Array.from({ length: 28 }, (_, i) => /* @__PURE__ */ React.createElement("option", { key: i + 1, value: i + 1 }, i + 1))
+    ), /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "#6B7280", flexShrink: 0 } }, "du mois")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { style: { fontSize: 11, color: "#6B7280", background: "#23242E", borderRadius: 6, padding: "4px 8px", flexShrink: 0 } }, "\u{1F501} Hebdo \u2014 chaque"), /* @__PURE__ */ React.createElement(
+      "select",
+      {
+        className: "field-sm",
+        style: { width: "auto" },
+        value: (_a = src.dayOfWeek) != null ? _a : 4,
+        onChange: (e) => {
+          const next = activeSrcs.map((s, i) => i === idx ? __spreadProps(__spreadValues({}, s), { dayOfWeek: parseInt(e.target.value) }) : s);
+          setIncomeEdit(next);
+        }
+      },
+      WEEKDAYS_FR.map((d, i) => /* @__PURE__ */ React.createElement("option", { key: i, value: i }, d))
+    ))));
+  }), /* @__PURE__ */ React.createElement("button", { onClick: () => {
+    const base = incomeEdit !== null ? incomeEdit : incomeSources;
+    setIncomeEdit([...base, { id: `inc_${Date.now()}`, label: "\u{1F4B5} Nouvelle source", targetAmount: 0, targetFreq: "weekly", auto: false, dayOfWeek: 4 }]);
+  }, style: { background: "none", border: "1px dashed #3A3B47", borderRadius: 8, color: "#6B7280", fontSize: 12, padding: "8px 12px", cursor: "pointer", fontFamily: "'DM Sans',sans-serif", width: "100%", marginTop: 8, textAlign: "left" } }, "+ Ajouter une source de revenus")), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 14, marginBottom: 14, fontSize: 11, color: "#6B7280", flexWrap: "wrap", alignItems: "center" } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(Calendar, { size: 11 }), " /mois"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(CalendarDays, { size: 11 }), " /semaine"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4 } }, /* @__PURE__ */ React.createElement(Hand, { size: 11 }), " manuel"), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 4, color: "#00D4A4" } }, /* @__PURE__ */ React.createElement(Zap, { size: 11 }), " auto")), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => saveIncomeSources(incomeEdit !== null ? incomeEdit : incomeSources),
+      style: { background: "#00D4A4", color: "#111", border: "none", borderRadius: 12, padding: "14px", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", width: "100%" }
+    },
+    "Sauvegarder"
+  )), view === "settings" && /* @__PURE__ */ React.createElement("div", { className: "slide-up", style: { padding: "28px 16px 0" } }, /* @__PURE__ */ React.createElement("div", { style: { fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800, marginBottom: 6 } }, "Donn\xE9es"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, color: "#6B7280", marginBottom: 24 } }, "Exporte ton data pour le conserver entre les mises \xE0 jour de l'app."), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "20px", marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 40, height: 40, borderRadius: 12, background: "#4F7FFF20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Download, { size: 18, color: "#4F7FFF" })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 600 } }, "Exporter"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#6B7280", marginTop: 2 } }, "T\xE9l\xE9charge un fichier .json avec toutes tes transactions, budgets et config."))), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: exportData,
+      style: { background: "#4F7FFF", color: "#fff", border: "none", borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }
+    },
+    /* @__PURE__ */ React.createElement(Download, { size: 15 }),
+    " Exporter mes donn\xE9es"
+  )), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "20px", marginBottom: 24 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, marginBottom: 12 } }, /* @__PURE__ */ React.createElement("div", { style: { width: 40, height: 40, borderRadius: 12, background: "#00D4A420", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } }, /* @__PURE__ */ React.createElement(Upload, { size: 18, color: "#00D4A4" })), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 600 } }, "Importer"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#6B7280", marginTop: 2 } }, "Restaure un export pr\xE9c\xE9dent. \u26A0\uFE0F Remplace toutes les donn\xE9es actuelles."))), /* @__PURE__ */ React.createElement("label", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#23242E", border: "1px solid #2E2F3A", borderRadius: 10, padding: "12px", fontSize: 14, fontWeight: 600, cursor: "pointer", color: "#E8E9F0", fontFamily: "'DM Sans',sans-serif", width: "100%" } }, /* @__PURE__ */ React.createElement(Upload, { size: 15 }), " Choisir un fichier .json", /* @__PURE__ */ React.createElement("input", { type: "file", accept: ".json", style: { display: "none" }, onChange: (e) => importData(e.target.files[0]) }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11, color: "#4A4B58", textAlign: "center", lineHeight: 1.6, marginBottom: 16 } }, "\u{1F4A1} Apr\xE8s une mise \xE0 jour de l'app, importe ton dernier export pour retrouver toutes tes donn\xE9es."), /* @__PURE__ */ React.createElement("div", { className: "card", style: { padding: "20px", borderColor: "#EF444422" } }, /* @__PURE__ */ React.createElement("div", { style: { fontSize: 14, fontWeight: 600, marginBottom: 4 } }, "Vider le cache"), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "#6B7280", marginBottom: 12 } }, "Efface toutes les donn\xE9es sauvegard\xE9es et repart avec les valeurs par d\xE9faut. \u26A0\uFE0F Irr\xE9versible."), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: () => {
+        if (window.confirm("Vider toutes les donn\xE9es? Cette action est irr\xE9versible.")) clearAllData();
+      },
+      style: { background: "#EF444422", color: "#EF4444", border: "1px solid #EF444433", borderRadius: 10, padding: "11px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'DM Sans',sans-serif", width: "100%" }
+    },
+    "\u{1F5D1}\uFE0F Vider le cache"
+  ))), /* @__PURE__ */ React.createElement("div", { style: { position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 430, background: "#13141A", borderTop: "1px solid #2A2B35", display: "flex", justifyContent: "space-around", padding: "6px 0", zIndex: 100 } }, [
+    { id: "dashboard", icon: /* @__PURE__ */ React.createElement(Wallet, { size: 20 }), label: "Aper\xE7u" },
+    { id: "add", icon: /* @__PURE__ */ React.createElement(PlusCircle, { size: 20 }), label: "Ajouter" },
+    { id: "history", icon: /* @__PURE__ */ React.createElement(BarChart3, { size: 20 }), label: "Historique" },
+    { id: "revenus", icon: /* @__PURE__ */ React.createElement(DollarSign, { size: 20 }), label: "Revenus" },
+    { id: "budgets", icon: /* @__PURE__ */ React.createElement(TrendingUp, { size: 20 }), label: "Budgets" }
+  ].map((n) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: n.id,
+      className: "nav-btn",
+      style: { color: view === n.id ? "#4F7FFF" : "#6B7280", background: view === n.id ? "#4F7FFF18" : "none" },
+      onClick: () => setView(n.id)
+    },
+    n.icon,
+    /* @__PURE__ */ React.createElement("span", null, n.label)
+  )))));
+}
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(BudgetTracker));
+  </script>
+  <script>
+    document.getElementById('splash').classList.add('hide');
+    setTimeout(()=>{const s=document.getElementById('splash');if(s)s.remove();},400);
+  </script>
+</body>
+</html>
