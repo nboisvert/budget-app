@@ -9,10 +9,13 @@
   <meta name="theme-color" content="#0E0F14"/>
   <title>Mon Budget</title>
   <link rel="manifest" href="manifest.json"/>
-  <style>*{box-sizing:border-box;margin:0;padding:0}html,body{background:#0E0F14;min-height:100vh;}#root{min-height:100vh;}</style>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet"/>
+  <style>*{box-sizing:border-box;margin:0;padding:0}html,body{background:#0E0F14;min-height:100vh;font-family:'DM Sans',sans-serif;}#root{min-height:100vh;}</style>
 </head>
 <body>
-  <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#4F7FFF;font-family:sans-serif;font-size:14px;">Chargement…</div></div>
+  <div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#4F7FFF;font-family:'DM Sans',sans-serif;font-size:14px;">Chargement…</div></div>
   <script>/**
  * @license React
  * react.production.min.js
@@ -328,7 +331,6 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
 //# sourceMappingURL=feather.min.js.map</script>
   <script>
 
-// Pre-extract all feather SVG strings for fast lookup
 window._featherIcons = {};
 Object.keys(feather.icons).forEach(function(name) {
   window._featherIcons[name] = feather.icons[name].toSvg();
