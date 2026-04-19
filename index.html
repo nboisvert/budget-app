@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0E0F14"/>
+  <title>Mon Budget</title>
+  <link rel="manifest" href="manifest.json"/>
+  <style>
+    html,body{margin:0;padding:0;background:#0E0F14;min-height:100vh;}
+    #root{min-height:100vh;}
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lucide-react@0.383.0/dist/umd/lucide-react.js"></script>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useCallback, useRef } = React;
+    const { PlusCircle, Trash2, TrendingDown, TrendingUp, Wallet, BarChart3, X,
+             Calendar, CalendarDays, Zap, Hand, DollarSign, Download, Upload, Settings } = LucideReact;
+
+    
+const windowStorage = {
+  get: async (key) => {
+    try { const v=localStorage.getItem(key); return v!=null?{value:v}:null; } catch(e){return null;}
+  },
+  set: async (key,value) => {
+    try { localStorage.setItem(key,value); return {key,value}; } catch(e){return null;}
+  },
+  delete: async (key) => {
+    try { localStorage.removeItem(key); return {key,deleted:true}; } catch(e){return null;}
+  }
+};
+
+
+    
+// ── Constants ────────────────────────────────────────────────────────
+const CATEGORIES = [
+  { id: "hypotheque",    label: "🏡 Hypothèque",           color: "#4F7FFF", fixed: true },
+  { id: "ass_maison",    label: "🛡️ Ass. Maison",           color: "#7B9FFF", fixed: true },
+  { id: "hydro",         label: "💡 Hydro",                 color: "#A0B4FF", fixed: true },
+  { id: "taxes",         label: "🏛️ Taxes mun./scol.",      color: "#8899DD", fixed: true },
+  { id: "ass_auto",      label: "🚘 Assurance auto",        color: "#FF6B6B", fixed: true },
+  { id: "ass_vie",       label: "❤️ Assurances vie",        color: "#FF8FA3", fixed: true },
+  { id: "essence",       label: "⛽ Essence",                color: "#FFB347" },
+  { id: "cell",          label: "📱 Cell",                  color: "#00C8FF", fixed: true },
+  { id: "internet",      label: "🌐 Internet",              color: "#00AADD", fixed: true },
+  { id: "abonnements",   label: "📺 Abonnements",           color: "#C77DFF", hasDetails: true },
+  { id: "service_garde", label: "👶 Service de garde Tom",  color: "#FFC8A2", fixed: true },
+  { id: "divers_enfants",label: "🧒 Divers enfants",        color: "#FFD580" },
+  { id: "epicerie",      label: "🛒 Épicerie",              color: "#6BCB77" },
+  { id: "cigs",          label: "🚬 Cigs",                  color: "#B0B0C0" },
+  { id: "sq",            label: "🍺 SQ",                    color: "#C8A96E" },
+  { id: "divers",        label: "📦 Divers",                color: "#9CA3AF" },
+  { id: "resto",         label: "🍽️ Resto",                 color: "#FF8C69" },
+  { id: "fast_food",     label: "🍔 Fast-food",             color: "#FFCC44" },
+  { id: "frais_banc",    label: "🏦 Frais bancaires",       color: "#6B7280", fixed: true },
+  { id: "placements",    label: "📈 Placements",            color: "#00D4A4" },
+  { id: "amelio_maison", label: "🔨 Amél. maison",          color: "#F97316" },
+  { id: "fond_urgence",  label: "🆘 Fond d'urgence",        color: "#EF4444" },
+];
+
+const DEFAULT_SUBS = [
+  { id: "sub_spotify", label: "Spotify" },
+  { id: "sub_disney",  label: "Disney+" },
+  { id: "sub_amazon",  label: "Amazon" },
+  { id: "sub_google",  label: "Google" },
+  { id: "sub_crave",   label: "CRAVE" },
+];
+
+// ── Income sources ──────────────────────────────────────────────────
+// { id, label, targetAmount, targetFreq: "weekly"|"monthly", auto: bool, dayOfWeek: 0-6 }
+const DEFAULT_INCOME_SOURCES = [
+  { id: "salaire",   label: "💼 Paie",       targetAmount: 1265,  targetFreq: "weekly",  auto: true,  dayOfWeek: 4 },
+  { id: "cell_inc",  label: "📱 Cellulaire",  targetAmount: 55,    targetFreq: "monthly", auto: false, dayOfWeek: 4, dayOfMonth: 1 },
+  { id: "val_loyer", label: "🏠 Val loyer",   targetAmount: 1200,  targetFreq: "monthly", auto: false, dayOfWeek: 4, dayOfMonth: 1 },
+];
+
+// ── Default budgets (monthly amounts from spreadsheet) ──────────────
+const DEFAULT_BUDGETS = {
+  hypotheque:     362,
+  ass_maison:     82,
+  hydro:          209,
+  taxes:          330,
+  ass_auto:       95,
+  ass_vie:        59,
+  essence:        80,   // x3/mois → ~80/sem entered as weekly below
+  cell:           33,
+  internet:       84,
+  abonnements:    0,    // tracked per sub
+  sub_spotify:    20,
+  sub_disney:     10,
+  sub_amazon:     8,
+  sub_google:     3,
+  sub_crave:      0,
+  service_garde:  135,
+  divers_enfants: 0,
+  epicerie:       250,  // weekly — set via autoConfigs budgetFreq
+  cigs:           75,
+  sq:             75,
+  divers:         100,
+  resto:          50,
+  fast_food:      0,
+  frais_banc:     11,
+  placements:     0,
+  amelio_maison:  0,
+  fond_urgence:   0,
+};
+
+// ── Default auto configs ─────────────────────────────────────────────
+const DEFAULT_AUTO_CONFIGS = {
+  hypotheque:     { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  ass_maison:     { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  hydro:          { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  taxes:          { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  ass_auto:       { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  ass_vie:        { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  cell:           { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  internet:       { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  service_garde:  { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  frais_banc:     { mode:"auto", budgetFreq:"monthly", dayOfMonth:1,  dayOfWeek:4 },
+  essence:        { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  epicerie:       { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  cigs:           { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  sq:             { mode:"manual", budgetFreq:"monthly", dayOfMonth:1 },
+  divers:         { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  resto:          { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  fast_food:      { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  placements:     { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  amelio_maison:  { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  fond_urgence:   { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+  divers_enfants: { mode:"manual", budgetFreq:"weekly", dayOfWeek:4 },
+};
+
+// autoConfig shape per category:
+// { mode: "manual"|"auto", budgetFreq: "monthly"|"weekly",
+//   freq: "monthly"|"weekly", dayOfMonth: 1-31, dayOfWeek: 0-6, amount: number|null }
+// budgetFreq = how the budget amount is expressed (per week or per month)
+// freq       = auto-transaction trigger frequency
+// amount null = use budget amount
+
+const WEEKDAYS_FR = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+const MONTHS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+const PAY_WEEK_START_DAY = 4; // Thursday
+
+// ── Date helpers ────────────────────────────────────────────────────
+function toDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function getPayWeekStart(date) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  d.setDate(d.getDate() - (d.getDay() - PAY_WEEK_START_DAY + 7) % 7);
+  return d;
+}
+function getWeekKey(date) { return toDateStr(getPayWeekStart(date)); }
+function getCurrentMonthKey() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,"0")}`;
+}
+function getWeekOptions() {
+  const opts = []; let cur = getPayWeekStart(new Date());
+  for (let i = 0; i < 16; i++) {
+    const end = new Date(cur); end.setDate(end.getDate()+6);
+    opts.push({ key:toDateStr(cur), start:toDateStr(cur), end:toDateStr(end),
+      label:`${cur.getDate()} ${MONTHS[cur.getMonth()]} – ${end.getDate()} ${MONTHS[end.getMonth()]}` });
+    cur = new Date(cur); cur.setDate(cur.getDate()-7);
+  }
+  return opts;
+}
+function getMonthOptions() {
+  const opts = []; const now = new Date();
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    opts.push({ key:`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`,
+      label:`${MONTHS[d.getMonth()]} ${d.getFullYear()}` });
+  }
+  return opts;
+}
+const CC_CYCLE_START_DAY = 23; // cycle starts on the 23rd, ends on the 22nd
+
+// Returns { key, start, end, label } for the CC cycle containing a given date
+function getCCCycle(date) {
+  const d = new Date(date); d.setHours(0,0,0,0);
+  const dom = d.getDate();
+  let cycleStart, cycleEnd;
+  if (dom >= CC_CYCLE_START_DAY) {
+    // cycle started this month
+    cycleStart = new Date(d.getFullYear(), d.getMonth(), CC_CYCLE_START_DAY);
+    cycleEnd   = new Date(d.getFullYear(), d.getMonth()+1, 22);
+  } else {
+    // cycle started last month
+    cycleStart = new Date(d.getFullYear(), d.getMonth()-1, CC_CYCLE_START_DAY);
+    cycleEnd   = new Date(d.getFullYear(), d.getMonth(), 22);
+  }
+  return {
+    key:   toDateStr(cycleStart),
+    start: toDateStr(cycleStart),
+    end:   toDateStr(cycleEnd),
+    label: `${cycleStart.getDate()} ${MONTHS[cycleStart.getMonth()]} – ${cycleEnd.getDate()} ${MONTHS[cycleEnd.getMonth()]} ${cycleEnd.getFullYear()}`,
+  };
+}
+
+// Returns the cycle BEFORE the one containing `date` (used for CC payment)
+function getPrevCCCycle(date) {
+  const cur = getCCCycle(date);
+  // Go one day before the current cycle start
+  const dayBefore = new Date(cur.start + "T00:00:00");
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  return getCCCycle(dayBefore);
+}
+
+function getCCCycleOptions() {
+  const opts = [];
+  const now = new Date();
+  for (let i = 0; i < 13; i++) {
+    // go back i months from current cycle start
+    const d = new Date(now.getFullYear(), now.getMonth() - i, CC_CYCLE_START_DAY);
+    const cycle = getCCCycle(new Date(d.getFullYear(), d.getMonth(), CC_CYCLE_START_DAY + 1));
+    // avoid duplicates
+    if (!opts.find(o => o.key === cycle.key)) opts.push(cycle);
+  }
+  return opts;
+}
+
+function formatCAD(n) {
+  return new Intl.NumberFormat("fr-CA",{style:"currency",currency:"CAD"}).format(n);
+}
+
+// ── Auto-transaction engine ──────────────────────────────────────────
+// Returns list of new transactions to inject (those not already present today)
+function computeAutoTransactions(autoConfigs, budgets, transactions) {
+  const today = toDateStr(new Date());
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+  const todayDOW = todayDate.getDay();       // 0=Sun…6=Sat
+  const todayDOM = todayDate.getDate();      // 1-31
+
+  const toAdd = [];
+
+  for (const [catId, cfg] of Object.entries(autoConfigs)) {
+    if (cfg.mode !== "auto") continue;
+    const amount = cfg.amount || budgets[catId] || 0;
+    if (!amount) continue;
+
+    let shouldFire = false;
+    // freq is always derived from budgetFreq (locked in UI)
+    const triggerFreq = cfg.budgetFreq || cfg.freq || "monthly";
+    if (triggerFreq === "monthly" && todayDOM === (cfg.dayOfMonth || 1)) shouldFire = true;
+    if (triggerFreq === "weekly"  && todayDOW === (cfg.dayOfWeek ?? 4)) shouldFire = true;
+
+    if (!shouldFire) continue;
+
+    // Check if already generated today for this category
+    const alreadyExists = transactions.some(
+      t => t.date === today && t.category === catId && t.auto === true
+    );
+    if (alreadyExists) continue;
+
+    const cat = CATEGORIES.find(c => c.id === catId);
+    toAdd.push({
+      id: Date.now() + Math.random(),
+      amount,
+      category: catId,
+      subId: "",
+      note: `Auto · ${cat?.label.split(" ").slice(1).join(" ") || catId}`,
+      date: today,
+      type: "expense",
+      auto: true,
+      onCC: cfg.onCC === true,
+      isCCPayment: false,
+    });
+  }
+  return toAdd;
+}
+
+// ── Income auto-inject engine ────────────────────────────────────────
+function computeAutoIncomes(incomeSources, transactions) {
+  const today = toDateStr(new Date());
+  const todayDOW = new Date().getDay();
+  const todayDOM = new Date().getDate();
+  const toAdd = [];
+  for (const src of incomeSources) {
+    if (!src.auto || !src.targetAmount) continue;
+    let shouldFire = false;
+    if (src.targetFreq === "weekly"  && todayDOW === (src.dayOfWeek ?? 4)) shouldFire = true;
+    if (src.targetFreq === "monthly" && todayDOM === (src.dayOfMonth || 1)) shouldFire = true;
+    if (!shouldFire) continue;
+    const alreadyExists = transactions.some(
+      t => t.date === today && t.incomeSourceId === src.id && t.auto === true
+    );
+    if (alreadyExists) continue;
+    toAdd.push({
+      id: Date.now() + Math.random(),
+      amount: src.targetAmount,
+      category: "__income__",
+      incomeSourceId: src.id,
+      subId: "",
+      note: `Auto · ${src.label}`,
+      date: today,
+      type: "income",
+      auto: true,
+    });
+  }
+  return toAdd;
+}
+
+// ── Component ────────────────────────────────────────────────────────
+function BudgetTracker() {
+  const [transactions, setTransactions] = useState([]);
+  const [budgets,      setBudgets]      = useState(DEFAULT_BUDGETS);
+  const [subs,         setSubs]         = useState(DEFAULT_SUBS);
+  const [autoConfigs,  setAutoConfigs]  = useState(DEFAULT_AUTO_CONFIGS); // { [catId]: AutoConfig }
+  const [view,         setView]         = useState("dashboard");
+  const [periodMode,   setPeriodMode]   = useState("week"); // "week" | "cc"
+  const [selectedWeek, setSelectedWeek] = useState(() => getWeekKey(new Date()));
+  const [selectedCycle,setSelectedCycle]= useState(() => getCCCycle(new Date()).key);
+  const [form,         setForm]         = useState(() => ({ amount:"", category:"epicerie", subId:"", note:"", date:new Date().toISOString().split("T")[0], type:"expense", onCC: DEFAULT_AUTO_CONFIGS["epicerie"]?.onCC===true, isCCPayment:false }));
+  // budgetEdit/autoEdit/subsEdit removed — all changes write directly to state + storage
+  const [toast,        setToast]        = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [incomeSources, setIncomeSources] = useState(DEFAULT_INCOME_SOURCES);
+  const [incomeEdit,    setIncomeEdit]    = useState(null); // draft in Revenus tab
+  const autoRanRef = useRef(false);
+
+  // ── Load ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    async function load() {
+      try {
+        const [txRes, budRes, subRes, autoRes, incRes] = await Promise.all([
+          windowStorage.get("budget_transactions").catch(() => null),
+          windowStorage.get("budget_budgets").catch(() => null),
+          windowStorage.get("budget_subs").catch(() => null),
+          windowStorage.get("budget_auto").catch(() => null),
+          windowStorage.get("budget_income_sources").catch(() => null),
+        ]);
+        const txList   = txRes?.value  ? JSON.parse(txRes.value)  : [];
+        const budMap   = budRes?.value ? JSON.parse(budRes.value) : DEFAULT_BUDGETS;
+        const subList  = subRes?.value ? JSON.parse(subRes.value) : DEFAULT_SUBS;
+        const autoCfg  = autoRes?.value? JSON.parse(autoRes.value): DEFAULT_AUTO_CONFIGS;
+        const incSrcs  = incRes?.value ? JSON.parse(incRes.value) : DEFAULT_INCOME_SOURCES;
+
+        setTransactions(txList);
+        setBudgets(budMap);
+        setSubs(subList);
+        setAutoConfigs(autoCfg);
+        setIncomeSources(incSrcs);
+
+        // Run auto-inject once on startup
+        if (!autoRanRef.current) {
+          autoRanRef.current = true;
+          const newExpTx  = computeAutoTransactions(autoCfg, budMap, txList);
+          const newIncTx  = computeAutoIncomes(incSrcs, txList);
+          const newTx     = [...newExpTx, ...newIncTx];
+          if (newTx.length > 0) {
+            const merged = [...newTx, ...txList];
+            setTransactions(merged);
+            await Promise.all([
+              windowStorage.set("budget_transactions",   JSON.stringify(merged)),
+              windowStorage.set("budget_budgets",        JSON.stringify(budMap)),
+              windowStorage.set("budget_subs",           JSON.stringify(subList)),
+              windowStorage.set("budget_auto",           JSON.stringify(autoCfg)),
+              windowStorage.set("budget_income_sources", JSON.stringify(incSrcs)),
+            ]).catch(()=>{});
+            const nd = newExpTx.length, ni = newIncTx.length;
+            const parts = [];
+            if (nd) parts.push(`${nd} dépense${nd>1?"s":""}`);
+            if (ni) parts.push(`${ni} revenu${ni>1?"s":""}`);
+            setToast(`⚡ ${parts.join(" + ")} auto ajouté${newTx.length>1?"s":""}`);
+            setTimeout(()=>setToast(null),3000);
+          }
+        }
+      } catch(e) {}
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  const save = useCallback(async (txList, budMap, subList, autoCfg, incSrcs) => {
+    try {
+      await Promise.all([
+        windowStorage.set("budget_transactions",    JSON.stringify(txList)),
+        windowStorage.set("budget_budgets",         JSON.stringify(budMap)),
+        windowStorage.set("budget_subs",            JSON.stringify(subList)),
+        windowStorage.set("budget_auto",            JSON.stringify(autoCfg)),
+        windowStorage.set("budget_income_sources",  JSON.stringify(incSrcs || [])),
+      ]);
+    } catch(e) {}
+  }, []);
+
+  function showToast(msg) { setToast(msg); setTimeout(()=>setToast(null),2500); }
+
+  // ── Export / Import ───────────────────────────────────────────────
+  function exportData() {
+    const payload = {
+      v: 1,
+      exportedAt: new Date().toISOString(),
+      transactions,
+      budgets,
+      subs,
+      autoConfigs,
+      incomeSources,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `budget-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("Export téléchargé ✓");
+  }
+
+  function importData(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const d = JSON.parse(e.target.result);
+        if (!d.v || !Array.isArray(d.transactions)) { showToast("Fichier invalide ✗"); return; }
+        const txList  = d.transactions  || [];
+        const budMap  = d.budgets       || {};
+        const subList = d.subs          || DEFAULT_SUBS;
+        const autoCfg = d.autoConfigs   || {};
+        const incSrcs = d.incomeSources || DEFAULT_INCOME_SOURCES;
+        setTransactions(txList);
+        setBudgets(budMap);
+        setSubs(subList);
+        setAutoConfigs(autoCfg);
+        setIncomeSources(incSrcs);
+        await save(txList, budMap, subList, autoCfg, incSrcs);
+        showToast(`Import réussi — ${txList.length} transactions ✓`);
+      } catch(err) {
+        showToast("Erreur import ✗");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  async function clearAllData() {
+    const keys = ["budget_transactions","budget_budgets","budget_subs","budget_auto","budget_income_sources"];
+    try { await Promise.all(keys.map(k => windowStorage.delete(k).catch(()=>{}))); } catch(e) {}
+    setTransactions([]);
+    setBudgets(DEFAULT_BUDGETS);
+    setSubs(DEFAULT_SUBS);
+    setAutoConfigs(DEFAULT_AUTO_CONFIGS);
+    setIncomeSources(DEFAULT_INCOME_SOURCES);
+    showToast("Cache vidé — données réinitialisées");
+  }
+
+  // ── Transactions ──────────────────────────────────────────────────
+  function addTransaction() {
+    if (!form.amount || isNaN(parseFloat(form.amount))) return;
+    const tx = { id:Date.now(), amount:parseFloat(form.amount), category:form.category,
+      subId: form.category==="abonnements"?form.subId:"", note:form.note, date:form.date, type:form.type, auto:false,
+      onCC: form.isCCPayment ? false : form.onCC,
+      isCCPayment: form.isCCPayment||false,
+      ccCycleKey: form.isCCPayment ? getPrevCCCycle(new Date(form.date)).key : undefined };
+    const updated = [tx, ...transactions];
+    setTransactions(updated); save(updated, budgets, subs, autoConfigs, incomeSources);
+    setForm({ amount:"", category:"epicerie", subId:"", note:"", date:new Date().toISOString().split("T")[0], type:"expense", onCC:false, isCCPayment:false });
+    showToast(form.type==="expense" ? "Dépense ajoutée ✓" : "Revenu ajouté ✓");
+    setView("dashboard");
+  }
+
+  function deleteTransaction(id) {
+    const updated = transactions.filter(t => t.id !== id);
+    setTransactions(updated); save(updated, budgets, subs, autoConfigs, incomeSources);
+    showToast("Transaction supprimée");
+  }
+
+  // ── Save budgets + auto configs ───────────────────────────────────
+  // Direct-write helpers — no draft state, every change auto-saves
+  function updateBudget(id, rawVal) {
+    const val = parseFloat(rawVal) || 0;
+    const merged = { ...budgets, [id]: val };
+    setBudgets(merged);
+    save(transactions, merged, subs, autoConfigs, incomeSources);
+  }
+  function updateAutoField(catId, field, value) {
+    const newAuto = { ...autoConfigs, [catId]: { ...(autoConfigs[catId] || {}), [field]: value } };
+    setAutoConfigs(newAuto);
+    save(transactions, budgets, subs, newAuto, incomeSources);
+  }
+  function updateSubs(newSubs) {
+    setSubs(newSubs);
+    save(transactions, budgets, newSubs, autoConfigs, incomeSources);
+  }
+  function saveBudgets() {
+    // No-op: everything already saved live. Just show confirmation.
+    showToast("✓ Tout est sauvegardé");
+  }
+
+  function saveIncomeSources(newSrcs) {
+    setIncomeSources(newSrcs);
+    save(transactions, budgets, subs, autoConfigs, newSrcs);
+    setIncomeEdit(null);
+    showToast("Sources de revenus sauvegardées ✓");
+  }
+
+  function getAutoConfig(catId) {
+    return autoConfigs[catId] || DEFAULT_AUTO_CONFIGS[catId] || { mode:"manual", budgetFreq:"monthly", freq:"monthly", dayOfMonth:1, dayOfWeek:4, amount:null };
+  }
+  // setAutoField kept as alias for updateAutoField for backward compat in JSX
+  function setAutoField(catId, field, value) { updateAutoField(catId, field, value); }
+
+  // ── Period helpers ────────────────────────────────────────────────
+  const weekOpts  = getWeekOptions();
+  const ccOpts    = getCCCycleOptions();
+  const curWeekOpt  = weekOpts.find(w => w.key===selectedWeek) || weekOpts[0];
+  const curCCCycle  = ccOpts.find(c => c.key===selectedCycle) || ccOpts[0];
+
+  function txInPeriod(tx) {
+    if (periodMode==="week") return tx.date >= curWeekOpt.start && tx.date <= curWeekOpt.end;
+    return tx.date >= curCCCycle.start && tx.date <= curCCCycle.end;
+  }
+  const periodTx = transactions.filter(txInPeriod);
+  const expenses  = periodTx.filter(t => t.type==="expense");
+  const income    = periodTx.filter(t => t.type==="income");
+  const totalExp  = expenses.reduce((s,t)=>s+t.amount,0);
+  const totalInc  = income.reduce((s,t)=>s+t.amount,0);
+  const balance   = totalInc - totalExp;
+  // CC total = sum of expenses for categories marked onCC
+  const totalCC = expenses.filter(t => t.onCC === true && !t.isCCPayment).reduce((s,t)=>s+t.amount,0);
+  const ccPaymentTx = periodTx.filter(t => t.isCCPayment);
+
+  function getBudget(id) {
+    const raw = budgets[id]||0;
+    if (!raw) return 0;
+    const cfg = autoConfigs[id] || {};
+    const catFreq = cfg.budgetFreq || "monthly"; // default: amount is monthly
+    if (periodMode === "week" && catFreq === "monthly") return raw / 4.33;
+    if (periodMode === "cc"   && catFreq === "weekly")  return raw * 4.33;
+    return raw; // same unit as view
+  }
+  const byCategory = CATEGORIES.map(cat => {
+    const catTx  = expenses.filter(t=>t.category===cat.id);
+    const spent  = catTx.reduce((s,t)=>s+t.amount,0);
+    const budget = getBudget(cat.id);
+    const subBreakdown = cat.hasDetails ? subs.map(sub=>{
+      const subSpent=catTx.filter(t=>t.subId===sub.id).reduce((s,t)=>s+t.amount,0);
+      return {...sub,spent:subSpent,budget:getBudget(sub.id)};
+    }).filter(s=>s.spent>0||s.budget>0) : [];
+    return { ...cat, spent, budget, pct:budget>0?Math.min((spent/budget)*100,100):0, subBreakdown };
+  }).filter(c=>c.spent>0||c.budget>0);
+
+  // Income by source for current period
+  const byIncome = incomeSources.map(src => {
+    const srcTx = income.filter(t => t.incomeSourceId === src.id || (!t.incomeSourceId && t.category === "__income__" && t.note?.includes(src.label)));
+    const received = srcTx.reduce((s,t)=>s+t.amount,0);
+    const target = src.targetFreq === "weekly" && periodMode === "cc" ? src.targetAmount * 4.33
+                 : src.targetFreq === "monthly" && periodMode === "week" ? src.targetAmount / 4.33
+                 : src.targetAmount;
+    return { ...src, received, target, pct: target > 0 ? Math.min((received/target)*100,100) : 0 };
+  });
+  // Also bucket income txs not linked to a source
+  const unlinkedIncome = income.filter(t => !incomeSources.some(s => t.incomeSourceId === s.id));
+
+  // ── Budget balance: budgeted income vs budgeted expenses ─────────────
+  const totalBudgetedInc = incomeSources.reduce((s, src) => {
+    const t = src.targetFreq === "weekly" && periodMode === "cc" ? src.targetAmount * 4.33
+            : src.targetFreq === "monthly" && periodMode === "week" ? src.targetAmount / 4.33
+            : src.targetAmount;
+    return s + t;
+  }, 0);
+  const totalBudgetedExp = CATEGORIES.reduce((s, cat) => s + getBudget(cat.id), 0);
+  const budgetBalance    = totalBudgetedInc - totalBudgetedExp;
+  const budgetPct        = totalBudgetedInc > 0 ? Math.min((totalBudgetedExp / totalBudgetedInc) * 100, 100) : 0;
+
+  const histTx = periodMode==="cc"
+    ? transactions.filter(t=>t.date>=curCCCycle.start&&t.date<=curCCCycle.end)
+    : transactions.filter(t=>t.date>=curWeekOpt.start&&t.date<=curWeekOpt.end);
+  const activeSubs = subs;
+
+  function navPrev() {
+    if (periodMode==="week") { const i=weekOpts.findIndex(w=>w.key===selectedWeek); if(i<weekOpts.length-1) setSelectedWeek(weekOpts[i+1].key); }
+    else { const i=ccOpts.findIndex(c=>c.key===selectedCycle); if(i<ccOpts.length-1) setSelectedCycle(ccOpts[i+1].key); }
+  }
+  function navNext() {
+    if (periodMode==="week") { const i=weekOpts.findIndex(w=>w.key===selectedWeek); if(i>0) setSelectedWeek(weekOpts[i-1].key); }
+    else { const i=ccOpts.findIndex(c=>c.key===selectedCycle); if(i>0) setSelectedCycle(ccOpts[i-1].key); }
+  }
+  const periodLabel = periodMode==="week" ? curWeekOpt.label : curCCCycle.label;
+
+  if (loading) return (
+    <div style={{background:"#0E0F14",minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <div style={{color:"#6B7280",fontFamily:"'DM Sans',sans-serif"}}>Chargement…</div>
+    </div>
+  );
+
+
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Syne:wght@600;700;800&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0}
+        body{background:#0E0F14}
+        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:#1A1B22}::-webkit-scrollbar-thumb{background:#2E2F3A;border-radius:2px}
+        .card{background:#1A1B22;border-radius:16px;border:1px solid #2A2B35}
+        input,select{font-family:'DM Sans',sans-serif;outline:none}
+        .field{background:#23242E;border:1px solid #2E2F3A;border-radius:10px;padding:12px 14px;color:#E8E9F0;font-size:14px;width:100%;transition:border .2s}
+        .field:focus{border-color:#4F7FFF}
+        .field-sm{background:#23242E;border:1px solid #2E2F3A;border-radius:8px;padding:6px 10px;color:#E8E9F0;font-size:12px;transition:border .2s}
+        .field-sm:focus{border-color:#4F7FFF}
+        .slide-up{animation:su .25s ease}
+        @keyframes su{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#23242E;border:1px solid #3A3B47;border-radius:12px;padding:10px 18px;color:#E8E9F0;font-family:'DM Sans',sans-serif;font-size:13px;z-index:999;box-shadow:0 8px 32px rgba(0,0,0,.4);animation:tin .2s ease;white-space:nowrap}
+        @keyframes tin{from{opacity:0;top:10px}to{opacity:1;top:20px}}
+        .bar-bg{background:#23242E;border-radius:999px;overflow:hidden;height:6px}
+        .del-btn{background:none;border:none;cursor:pointer;color:#4A4B58;padding:4px;border-radius:6px;transition:color .18s;display:flex;align-items:center}
+        .del-btn:hover{color:#FF6B6B}
+        .type-toggle{display:flex;background:#23242E;border-radius:10px;padding:3px;gap:2px}
+        .type-btn{flex:1;padding:8px;border:none;border-radius:8px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;transition:all .18s}
+        .mode-toggle{display:flex;background:#1A1B22;border:1px solid #2A2B35;border-radius:10px;padding:3px;gap:2px}
+        .mode-btn{flex:1;padding:7px 10px;border:none;border-radius:7px;cursor:pointer;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:5px}
+        .nav-btn{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;font-family:'DM Sans',sans-serif;font-size:11px;transition:all .2s;padding:8px 14px;border-radius:12px}
+        .auto-badge{font-size:9px;background:#FFB34722;color:#FFB347;border-radius:4px;padding:2px 6px;display:inline-flex;align-items:center;gap:3px;flex-shrink:0}
+        .sub-row{display:flex;align-items:center;padding:4px 0 4px 24px;gap:8px;border-left:2px solid #2A2B35;margin-left:12px}
+        .pnav-btn{background:none;border:1px solid #2A2B35;color:#9CA3AF;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .18s;flex-shrink:0}
+        .pnav-btn:hover{background:#23242E;color:#E8E9F0}
+        .icon-toggle{display:flex;background:#1A1B22;border:1px solid #2A2B35;border-radius:7px;padding:2px;gap:1px;flex-shrink:0}
+        .icon-opt{border:none;cursor:pointer;border-radius:5px;width:26px;height:24px;display:flex;align-items:center;justify-content:center;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;transition:all .15s;letter-spacing:.5px}
+        .cat-section{border-bottom:1px solid #23242E;padding:10px 0}
+        .cat-section:last-child{border-bottom:none}
+        .sched-row{display:flex;align-items:center;gap:8px;margin-top:8px;margin-left:34px;flex-wrap:wrap}
+        select option{background:#1A1B22;color:#E8E9F0}
+      `}</style>
+
+      <div style={{background:"#0E0F14",minHeight:"100vh",maxWidth:430,margin:"0 auto",fontFamily:"'DM Sans',sans-serif",color:"#E8E9F0",paddingBottom:80}}>
+
+        {toast && <div className="toast">{toast}</div>}
+
+        {/* ── DASHBOARD ──────────────────────────────────────── */}
+        {view==="dashboard" && (
+          <div className="slide-up" style={{padding:"28px 16px 0"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18}}>
+              <div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,letterSpacing:"-0.5px"}}>Mon Budget</div>
+                <div style={{fontSize:11,color:"#6B7280",marginTop:2}}>Québec · CAD · paie jeu → mer · <span style={{color:"#4F7FFF"}}>v1.3</span></div>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>window.location.reload()}
+                  style={{background:"#1A1B22",border:"1px solid #2A2B35",borderRadius:10,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#6B7280",flexShrink:0}}
+                  title="Recharger l'app">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </button>
+                <button onClick={()=>setView("settings")}
+                  style={{background:"#1A1B22",border:"1px solid #2A2B35",borderRadius:10,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#6B7280",flexShrink:0}}>
+                  <Settings size={16}/>
+                </button>
+              </div>
+            </div>
+
+            <div className="mode-toggle" style={{marginBottom:10}}>
+              <button className="mode-btn" style={{background:periodMode==="week"?"#4F7FFF":"transparent",color:periodMode==="week"?"#fff":"#6B7280"}} onClick={()=>setPeriodMode("week")}><CalendarDays size={13}/> Semaine</button>
+              <button className="mode-btn" style={{background:periodMode==="cc"?"#A78BFA":"transparent",color:periodMode==="cc"?"#fff":"#6B7280"}} onClick={()=>setPeriodMode("cc")}>💳 Cycle CC</button>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+              <button className="pnav-btn" onClick={navPrev}>‹</button>
+              <div style={{flex:1,textAlign:"center",fontSize:13,fontWeight:600}}>{periodLabel}</div>
+              <button className="pnav-btn" onClick={navNext}>›</button>
+            </div>
+
+            {/* Balance card */}
+            <div className="card" style={{padding:"20px",marginBottom:12,background:"linear-gradient(135deg,#1A1F35 0%,#1A1B22 100%)",position:"relative",overflow:"hidden"}}>
+              <div style={{position:"absolute",top:-20,right:-20,width:100,height:100,borderRadius:"50%",background:"rgba(79,127,255,.08)"}}/>
+
+              {/* Actual balance */}
+              <div style={{fontSize:11,color:"#6B7280",textTransform:"uppercase",letterSpacing:"1px",marginBottom:6}}>Solde réel · {periodMode==="week"?"semaine":"cycle CC"}</div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:balance>=0?"#00D4A4":"#FF6B6B",letterSpacing:"-1px"}}>{formatCAD(balance)}</div>
+              {(()=>{
+                const ccExp = expenses.filter(t=>t.onCC===true&&!t.isCCPayment).reduce((s,t)=>s+t.amount,0);
+                return (
+                  <div style={{display:"flex",gap:16,marginTop:12,marginBottom:16,flexWrap:"wrap"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <TrendingUp size={14} color="#00D4A4"/>
+                      <div><div style={{fontSize:10,color:"#6B7280"}}>Reçu</div><div style={{fontSize:13,fontWeight:600,color:"#00D4A4"}}>{formatCAD(totalInc)}</div></div>
+                    </div>
+                    <div style={{width:1,background:"#2A2B35"}}/>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <TrendingDown size={14} color="#FF6B6B"/>
+                      <div><div style={{fontSize:10,color:"#6B7280"}}>Dépensé</div><div style={{fontSize:13,fontWeight:600,color:"#FF6B6B"}}>{formatCAD(totalExp)}</div></div>
+                    </div>
+                    {ccExp > 0 && <>
+                      <div style={{width:1,background:"#2A2B35"}}/>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:14}}>💳</span>
+                        <div><div style={{fontSize:10,color:"#6B7280"}}>Sur carte</div><div style={{fontSize:13,fontWeight:600,color:"#A78BFA"}}>{formatCAD(ccExp)}</div></div>
+                      </div>
+                    </>}
+                  </div>
+                );
+              })()}
+
+              {/* Divider */}
+              <div style={{height:1,background:"#2A2B35",marginBottom:14}}/>
+
+              {/* Budget balance */}
+              <div style={{fontSize:11,color:"#6B7280",textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>Balance budgétée</div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:700,color:budgetBalance>=0?"#00D4A4":"#FF6B6B",letterSpacing:"-0.5px"}}>
+                  {budgetBalance>=0?"✓":"⚠"} {formatCAD(budgetBalance)}
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:11,color:"#6B7280"}}>{formatCAD(totalBudgetedExp)} / {formatCAD(totalBudgetedInc)}</div>
+                  <div style={{fontSize:11,color:budgetBalance>=0?"#00D4A4":"#FF6B6B",fontWeight:600,marginTop:1}}>
+                    {budgetBalance>=0 ? `${(100-budgetPct).toFixed(0)}% non alloué` : `${(budgetPct-100).toFixed(0)}% over budget`}
+                  </div>
+                </div>
+              </div>
+              {/* Budget usage bar */}
+              <div className="bar-bg" style={{height:8}}>
+                <div style={{height:"100%",width:`${budgetPct}%`,borderRadius:999,background:budgetBalance>=0?"#4F7FFF":"#FF6B6B",transition:"width .5s ease"}}/>
+                {budgetBalance>=0 && (
+                  <div style={{position:"relative",marginTop:-8,marginLeft:`${budgetPct}%`,height:8,width:`${100-budgetPct}%`,borderRadius:"0 999px 999px 0",background:"#00D4A422"}}/>
+                )}
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:10,color:"#4A4B58"}}>
+                <span>Dépenses budgétées</span>
+                <span>Revenus cibles</span>
+              </div>
+            </div>
+
+            {/* CC Payment summary — only in CC cycle view */}
+            {periodMode==="cc" && (()=>{
+              const tracked  = expenses.filter(t=>t.onCC===true&&!t.isCCPayment).reduce((s,t)=>s+t.amount,0);
+              // Find payment tx that references THIS cycle
+              const paidTx   = transactions.find(t=>t.isCCPayment && t.ccCycleKey===curCCCycle.key);
+              const paid     = paidTx ? paidTx.amount : 0;
+              const isPaid   = !!paidTx;
+              const budgeted = CATEGORIES.reduce((s,cat)=>{
+                const cfg=autoConfigs[cat.id]||{}; if(!cfg.onCC) return s;
+                const raw=budgets[cat.id]||0;
+                return s+(cfg.budgetFreq==="weekly"?raw*4.33:raw);
+              },0);
+              const vsTracked = paid - tracked;
+              const vsBudget  = paid - budgeted;
+              return (
+                <div className="card" style={{padding:"16px",marginBottom:12,borderColor:isPaid?"#A78BFA33":"#A78BFA22",background:"#100A1A"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                    <div style={{fontSize:12,color:"#A78BFA",textTransform:"uppercase",letterSpacing:"1px"}}>💳 Carte de crédit</div>
+                    {!isPaid && <span style={{fontSize:11,color:"#6B7280",background:"#23242E",borderRadius:6,padding:"3px 8px"}}>En attente de paiement</span>}
+                    {isPaid && <span style={{fontSize:11,color:"#A78BFA",fontWeight:600}}>Payé le {paidTx.date}</span>}
+                  </div>
+
+                  {/* 3 key figures */}
+                  <div style={{display:"flex",gap:12,flexWrap:"wrap",marginBottom:isPaid?12:10}}>
+                    <div><div style={{fontSize:10,color:"#6B7280"}}>Tracké CC</div><div style={{fontSize:14,fontWeight:700,color:"#E8E9F0"}}>{formatCAD(tracked)}</div></div>
+                    <div style={{width:1,background:"#2A2B35"}}/>
+                    <div><div style={{fontSize:10,color:"#6B7280"}}>Budget CC</div><div style={{fontSize:14,fontWeight:700,color:"#6B7280"}}>{formatCAD(budgeted)}</div></div>
+                    {isPaid && <>
+                      <div style={{width:1,background:"#2A2B35"}}/>
+                      <div><div style={{fontSize:10,color:"#6B7280"}}>Payé</div><div style={{fontSize:14,fontWeight:700,color:"#A78BFA"}}>{formatCAD(paid)}</div></div>
+                    </>}
+                  </div>
+
+                  {/* Comparisons — only once paid */}
+                  {isPaid && (
+                    <div style={{display:"flex",flexDirection:"column",gap:4,paddingTop:10,borderTop:"1px solid #2A2B35"}}>
+                      <div style={{display:"flex",justifyContent:"space-between"}}>
+                        <span style={{fontSize:12,color:"#6B7280"}}>Payé vs tracké</span>
+                        <span style={{fontSize:12,fontWeight:700,color:Math.abs(vsTracked)<1?"#00D4A4":vsTracked>0?"#FF6B6B":"#00D4A4"}}>
+                          {Math.abs(vsTracked)<1?"✓ Exact":vsTracked>0?`⚠ ${formatCAD(vsTracked)} non tracké`:`✓ ${formatCAD(Math.abs(vsTracked))} surplus`}
+                        </span>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between"}}>
+                        <span style={{fontSize:12,color:"#6B7280"}}>Payé vs budget</span>
+                        <span style={{fontSize:12,fontWeight:700,color:vsBudget<=0?"#00D4A4":"#FF6B6B"}}>
+                          {vsBudget<=0?`✓ ${formatCAD(Math.abs(vsBudget))} sous budget`:`⚠ ${formatCAD(vsBudget)} over`}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {!isPaid && (
+                    <button onClick={()=>{setForm(f=>({...f,isCCPayment:true,type:"expense",onCC:false,category:"paiement_cc",note:"Paiement carte de crédit",amount:String(tracked)}));setView("add");}}
+                      style={{background:"#A78BFA",color:"#111",border:"none",borderRadius:9,padding:"9px 14px",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",width:"100%"}}>
+                      Enregistrer le paiement CC →
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Income breakdown */}
+            {(byIncome.some(s=>s.received>0||s.target>0) || unlinkedIncome.length>0) && (
+              <div className="card" style={{padding:"16px",marginBottom:12,borderColor:"#00D4A420"}}>
+                <div style={{fontSize:12,color:"#00D4A4",textTransform:"uppercase",letterSpacing:"1px",marginBottom:12}}>Revenus</div>
+                <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                  {byIncome.filter(s=>s.received>0||s.target>0).map(s=>(
+                    <div key={s.id}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:s.target>0?4:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6}}>
+                          <span style={{fontSize:13}}>{s.label}</span>
+                          {s.auto && <span style={{fontSize:9,background:"#00D4A422",color:"#00D4A4",borderRadius:3,padding:"1px 5px",display:"inline-flex",alignItems:"center",gap:2}}><Zap size={8}/>auto</span>}
+                        </div>
+                        <div style={{textAlign:"right"}}>
+                          <span style={{fontSize:13,fontWeight:600,color:"#00D4A4"}}>{formatCAD(s.received)}</span>
+                          {s.target>0 && <span style={{fontSize:11,color:"#6B7280"}}> / {formatCAD(s.target)}</span>}
+                        </div>
+                      </div>
+                      {s.target>0 && (
+                        <div className="bar-bg">
+                          <div style={{height:"100%",width:`${s.pct}%`,borderRadius:999,background:"#00D4A4",transition:"width .5s ease"}}/>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {unlinkedIncome.length>0 && (
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:12,color:"#9CA3AF"}}>Autres revenus</span>
+                      <span style={{fontSize:13,fontWeight:600,color:"#00D4A4"}}>{formatCAD(unlinkedIncome.reduce((s,t)=>s+t.amount,0))}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* By category */}
+            {byCategory.length > 0 && (
+              <div className="card" style={{padding:"16px",marginBottom:12}}>
+                <div style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:"1px",marginBottom:14}}>Par catégorie</div>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  {byCategory.sort((a,b)=>b.spent-a.spent).map(cat=>{
+                    const cfg = autoConfigs[cat.id]||{};
+                    return (
+                      <div key={cat.id}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:cat.budget>0?5:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <span style={{fontSize:13}}>{cat.label}</span>
+                            {cfg.mode==="auto" && <span className="auto-badge"><Zap size={8}/>auto</span>}
+                            {cfg.onCC && <span style={{fontSize:9,background:"#F59E0B22",color:"#F59E0B",borderRadius:3,padding:"1px 5px",flexShrink:0}}>💳</span>}
+                          </div>
+                          <div style={{textAlign:"right"}}>
+                            <span style={{fontSize:13,fontWeight:600,color:cat.budget>0&&cat.spent>cat.budget?"#FF6B6B":"#E8E9F0"}}>{formatCAD(cat.spent)}</span>
+                            {cat.budget>0 && <span style={{fontSize:11,color:"#6B7280"}}> / {formatCAD(cat.budget)}</span>}
+                          </div>
+                        </div>
+                        {cat.budget>0 && <div className="bar-bg"><div style={{height:"100%",width:`${cat.pct}%`,borderRadius:999,background:cat.spent>cat.budget?"#FF6B6B":cat.color,transition:"width .5s ease"}}/></div>}
+                        {cat.hasDetails && cat.subBreakdown.length>0 && (
+                          <div style={{marginTop:6}}>
+                            {cat.subBreakdown.map(sub=>(
+                              <div key={sub.id} className="sub-row">
+                                <span style={{flex:1,fontSize:12,color:"#9CA3AF"}}>{sub.label}</span>
+                                <span style={{fontSize:12,color:"#C77DFF",fontWeight:500}}>{formatCAD(sub.spent)}</span>
+                                {sub.budget>0 && <span style={{fontSize:11,color:"#6B7280"}}>/ {formatCAD(sub.budget)}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Recent */}
+            <div className="card" style={{padding:"16px"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+                <div style={{fontSize:12,color:"#6B7280",textTransform:"uppercase",letterSpacing:"1px"}}>Récentes</div>
+                <button style={{background:"none",border:"none",cursor:"pointer",color:"#9CA3AF",fontSize:13,fontFamily:"'DM Sans',sans-serif"}} onClick={()=>setView("history")}>Voir tout →</button>
+              </div>
+              {periodTx.length===0
+                ? <div style={{textAlign:"center",color:"#4A4B58",fontSize:13,padding:"20px 0"}}>Aucune transaction</div>
+                : periodTx.slice(0,5).map(tx=>{
+                    const cat=CATEGORIES.find(c=>c.id===tx.category);
+                    const incSrcD=tx.incomeSourceId?incomeSources.find(s=>s.id===tx.incomeSourceId):null;
+                    const dEmoji = cat ? cat.label.split(" ")[0] : "💵";
+                    const dColor = cat ? cat.color : "#00D4A4";
+                    const subLabel=tx.subId?subs.find(s=>s.id===tx.subId)?.label:null;
+                    return (
+                      <div key={tx.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 0",borderBottom:"1px solid #23242E"}}>
+                        <div style={{width:36,height:36,borderRadius:10,background:`${dColor}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{dEmoji}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <span style={{fontSize:13,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tx.note||subLabel||(incSrcD?incSrcD.label:null)||(cat?cat.label.split(" ").slice(1).join(" "):"Revenu")}</span>
+                            {tx.auto && <span style={{fontSize:9,background:"#FFB34722",color:"#FFB347",borderRadius:3,padding:"1px 4px",flexShrink:0}}>⚡</span>}
+                          </div>
+                          <div style={{fontSize:11,color:"#6B7280"}}>{tx.date}</div>
+                        </div>
+                        <div style={{fontWeight:600,fontSize:14,color:tx.type==="income"?"#00D4A4":"#E8E9F0",flexShrink:0}}>
+                          {tx.type==="income"?"+":"-"}{formatCAD(tx.amount)}
+                        </div>
+                      </div>
+                    );
+                  })}
+            </div>
+          </div>
+        )}
+
+        {/* ── ADD ────────────────────────────────────────────── */}
+        {view==="add" && (
+          <div className="slide-up" style={{padding:"28px 16px 0"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,marginBottom:24}}>Nouvelle entrée</div>
+            <div style={{display:"flex",flexDirection:"column",gap:14}}>
+
+              {/* Type toggle: Dépense / Revenu / Paiement CC */}
+              <div className="type-toggle">
+                {[
+                  {k:"expense",    label:"💸 Dépense"},
+                  {k:"income",     label:"💵 Revenu"},
+                  {k:"cc_payment", label:"💳 Paiement CC"},
+                ].map(t=>(
+                  <button key={t.k} className="type-btn"
+                    style={{background:(t.k==="cc_payment"?form.isCCPayment:(!form.isCCPayment&&form.type===t.k))
+                      ?(t.k==="expense"?"#FF6B6B":t.k==="income"?"#00D4A4":"#A78BFA"):"transparent",
+                      color:(t.k==="cc_payment"?form.isCCPayment:(!form.isCCPayment&&form.type===t.k))?"#fff":"#6B7280",fontSize:12}}
+                    onClick={()=>{
+                      if(t.k==="cc_payment") setForm(f=>({...f,isCCPayment:true,type:"expense",onCC:false,category:"paiement_cc",note:"Paiement carte de crédit"}));
+                      else setForm(f=>({...f,isCCPayment:false,type:t.k}));
+                    }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* CC Payment mode: show cycle recap */}
+              {form.isCCPayment && (()=>{
+                const refCycle  = getPrevCCCycle(new Date(form.date));
+                const cycleTxs  = transactions.filter(t => t.date>=refCycle.start && t.date<=refCycle.end);
+                const tracked   = cycleTxs.filter(t=>t.onCC===true&&!t.isCCPayment).reduce((s,t)=>s+t.amount,0);
+                const paid      = parseFloat(form.amount||0);
+                // Budget CC = somme mensuelle des catégories onCC
+                const budgeted  = CATEGORIES.reduce((s,cat)=>{
+                  const cfg=autoConfigs[cat.id]||{}; if(!cfg.onCC) return s;
+                  const raw=budgets[cat.id]||0;
+                  return s+(cfg.budgetFreq==="weekly"?raw*4.33:raw);
+                },0);
+                const vsTracked = paid - tracked;   // >0 = manque des tx, <0 = surplus
+                const vsBudget  = paid - budgeted;  // >0 = over budget, <0 = under budget
+                return (
+                  <div className="card" style={{padding:"14px",background:"#100A1A",borderColor:"#A78BFA44"}}>
+                    <div style={{fontSize:11,color:"#A78BFA",textTransform:"uppercase",letterSpacing:"1px",marginBottom:4}}>Cycle référencé</div>
+                    <div style={{fontSize:12,color:"#6B7280",marginBottom:12}}>{refCycle.label}</div>
+
+                    {/* 3 rows */}
+                    {[
+                      {label:"Tracké CC",    val:tracked,  color:"#E8E9F0"},
+                      {label:"Budget CC",    val:budgeted, color:"#6B7280"},
+                      {label:"Montant payé", val:paid>0?paid:null, color:"#A78BFA"},
+                    ].map(row=>(
+                      <div key={row.label} style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                        <span style={{fontSize:13,color:"#6B7280"}}>{row.label}</span>
+                        <span style={{fontSize:13,fontWeight:600,color:row.color}}>{row.val!=null?formatCAD(row.val):"—"}</span>
+                      </div>
+                    ))}
+
+                    {paid>0 && <>
+                      <div style={{height:1,background:"#2A2B35",margin:"8px 0"}}/>
+                      {/* Payé vs Tracké */}
+                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                        <span style={{fontSize:12,color:"#6B7280"}}>Payé vs tracké</span>
+                        <span style={{fontSize:13,fontWeight:700,color:Math.abs(vsTracked)<1?"#00D4A4":vsTracked>0?"#FF6B6B":"#00D4A4"}}>
+                          {Math.abs(vsTracked)<1?"✓ Exact":vsTracked>0?`⚠ +${formatCAD(vsTracked)} non tracké`:`${formatCAD(vsTracked)} surplus`}
+                        </span>
+                      </div>
+                      {/* Payé vs Budget */}
+                      <div style={{display:"flex",justifyContent:"space-between"}}>
+                        <span style={{fontSize:12,color:"#6B7280"}}>Payé vs budget</span>
+                        <span style={{fontSize:13,fontWeight:700,color:vsBudget<=0?"#00D4A4":"#FF6B6B"}}>
+                          {vsBudget<=0?`✓ ${formatCAD(Math.abs(vsBudget))} sous budget`:`⚠ +${formatCAD(vsBudget)} over`}
+                        </span>
+                      </div>
+                    </>}
+                  </div>
+                );
+              })()}
+
+              <div>
+                <div style={{fontSize:11,color:"#6B7280",marginBottom:6,textTransform:"uppercase",letterSpacing:".8px"}}>Montant (CAD)</div>
+                <input className="field" type="number" placeholder="0.00" value={form.amount}
+                  onChange={e=>setForm(f=>({...f,amount:e.target.value}))}
+                  style={{fontSize:22,fontWeight:600,fontFamily:"'Syne',sans-serif"}} />
+              </div>
+
+              {!form.isCCPayment && <>
+                <div>
+                  <div style={{fontSize:11,color:"#6B7280",marginBottom:6,textTransform:"uppercase",letterSpacing:".8px"}}>Catégorie</div>
+                  <select className="field" value={form.category} onChange={e=>{
+                    const cfg=autoConfigs[e.target.value]||{};
+                    setForm(f=>({...f,category:e.target.value,subId:"",onCC:cfg.onCC===true}));
+                  }}>
+                    {CATEGORIES.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+                {form.category==="abonnements" && (
+                  <div>
+                    <div style={{fontSize:11,color:"#6B7280",marginBottom:6,textTransform:"uppercase",letterSpacing:".8px"}}>Abonnement</div>
+                    <select className="field" value={form.subId} onChange={e=>setForm(f=>({...f,subId:e.target.value}))}>
+                      <option value="">— Choisir —</option>
+                      {subs.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
+                    </select>
+                  </div>
+                )}
+                {/* CC tag toggle */}
+                {form.type==="expense" && (
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <div style={{fontSize:11,color:"#6B7280",textTransform:"uppercase",letterSpacing:".8px"}}>Paiement</div>
+                    <div className="icon-toggle" style={{border:form.onCC?"1px solid #F59E0B55":"1px solid #2A2B35"}}>
+                      <button className="icon-opt" title="Comptant / débit"
+                        style={{background:!form.onCC?"#2E2F3A":"transparent",color:!form.onCC?"#E8E9F0":"#6B7280",fontSize:12,width:48}}
+                        onClick={()=>setForm(f=>({...f,onCC:false}))}>💵 Cash</button>
+                      <button className="icon-opt" title="Carte de crédit"
+                        style={{background:form.onCC?"#F59E0B":"transparent",color:form.onCC?"#111":"#6B7280",fontSize:12,width:48}}
+                        onClick={()=>setForm(f=>({...f,onCC:true}))}>💳 CC</button>
+                    </div>
+                  </div>
+                )}
+              </>}
+
+              <div>
+                <div style={{fontSize:11,color:"#6B7280",marginBottom:6,textTransform:"uppercase",letterSpacing:".8px"}}>Note (optionnel)</div>
+                <input className="field" placeholder={form.isCCPayment?"Paiement carte de crédit…":"ex: Épicerie IGA…"} value={form.note} onChange={e=>setForm(f=>({...f,note:e.target.value}))} />
+              </div>
+              <div>
+                <div style={{fontSize:11,color:"#6B7280",marginBottom:6,textTransform:"uppercase",letterSpacing:".8px"}}>Date</div>
+                <input className="field" type="date" value={form.date} onChange={e=>setForm(f=>({...f,date:e.target.value}))} />
+              </div>
+              <button onClick={addTransaction}
+                style={{background:form.isCCPayment?"#A78BFA":form.type==="expense"?"#4F7FFF":"#00D4A4",color:form.isCCPayment?"#111":"#fff",border:"none",borderRadius:12,padding:"14px",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",marginTop:4}}>
+                {form.isCCPayment?"Enregistrer le paiement CC →":"Ajouter →"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── HISTORY ────────────────────────────────────────── */}
+        {view==="history" && (
+          <div className="slide-up" style={{padding:"28px 16px 0"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800}}>Historique</div>
+              <select className="field" style={{width:"auto",fontSize:13,padding:"7px 10px",background:"#1A1B22"}}
+                value={periodMode==="cc"?selectedCycle:selectedWeek}
+                onChange={e=>{ if(periodMode==="cc") setSelectedCycle(e.target.value); else setSelectedWeek(e.target.value); }}>
+                {(periodMode==="cc"?ccOpts:weekOpts).map(o=><option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </div>
+            <div className="card" style={{padding:"8px 16px"}}>
+              {histTx.length===0
+                ? <div style={{textAlign:"center",color:"#4A4B58",fontSize:13,padding:"32px 0"}}>Aucune transaction</div>
+                : histTx.map(tx=>{
+                    const cat=CATEGORIES.find(c=>c.id===tx.category);
+                    const incSrc=tx.incomeSourceId?incomeSources.find(s=>s.id===tx.incomeSourceId):null;
+                    const catEmoji = cat ? cat.label.split(" ")[0] : (tx.type==="income"?"💵":"📦");
+                    const catColor = cat ? cat.color : "#00D4A4";
+                    const subLabel=tx.subId?subs.find(s=>s.id===tx.subId)?.label:null;
+                    return (
+                      <div key={tx.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid #23242E"}}>
+                        <div style={{width:36,height:36,borderRadius:10,background:`${catColor}20`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{catEmoji}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:5}}>
+                            <span style={{fontSize:13,fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{tx.note||subLabel||(incSrc?incSrc.label:null)||(cat?cat.label.split(" ").slice(1).join(" "):"Revenu")}</span>
+                            {tx.auto && <span style={{fontSize:9,background:"#FFB34722",color:"#FFB347",borderRadius:3,padding:"1px 4px",flexShrink:0}}>⚡</span>}
+                            {tx.isCCPayment && <span style={{fontSize:9,background:"#A78BFA22",color:"#A78BFA",borderRadius:3,padding:"1px 5px",flexShrink:0}}>💳 paiement</span>}
+                            {!tx.isCCPayment && tx.type==="expense" && <span style={{fontSize:9,background:tx.onCC?"#F59E0B22":"#2A2B35",color:tx.onCC?"#F59E0B":"#6B7280",borderRadius:3,padding:"1px 5px",flexShrink:0}}>{tx.onCC?"💳":"💵"}</span>}
+                          </div>
+                          <div style={{fontSize:11,color:"#6B7280"}}>{tx.date}{subLabel?` · ${subLabel}`:""}</div>
+                        </div>
+                        <div style={{fontWeight:600,fontSize:14,color:tx.type==="income"?"#00D4A4":"#E8E9F0",flexShrink:0}}>
+                          {tx.type==="income"?"+":"-"}{formatCAD(tx.amount)}
+                        </div>
+                        <button className="del-btn" onClick={()=>deleteTransaction(tx.id)}><Trash2 size={14}/></button>
+                      </div>
+                    );
+                  })}
+            </div>
+          </div>
+        )}
+
+        {/* ── BUDGETS ────────────────────────────────────────── */}
+        {view==="budgets" && (()=>{
+          // Ramène tout en mensuel pour le différentiel
+          const monthlyExpTotal = CATEGORIES.reduce((s, cat) => {
+            const raw = budgets[cat.id] || 0;
+            const cfg = autoConfigs[cat.id] || {};
+            const freq = cfg.budgetFreq || "monthly";
+            return s + (freq === "weekly" ? raw * 4.33 : raw);
+          }, 0);
+          const monthlyIncTotal = incomeSources.reduce((s, src) => {
+            return s + (src.targetFreq === "weekly" ? src.targetAmount * 4.33 : src.targetAmount);
+          }, 0);
+          const monthlyDiff = monthlyIncTotal - monthlyExpTotal;
+          const diffPct = monthlyIncTotal > 0 ? Math.min((monthlyExpTotal / monthlyIncTotal) * 100, 100) : 0;
+          return (
+          <div className="slide-up" style={{padding:"28px 16px 0"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,marginBottom:16}}>Budgets & Auto</div>
+
+            {/* Monthly differential summary card */}
+            <div className="card" style={{padding:"16px",marginBottom:16,borderColor:monthlyDiff>=0?"#00D4A422":"#FF6B6B22",background:monthlyDiff>=0?"linear-gradient(135deg,#0D1F18 0%,#1A1B22 100%)":"linear-gradient(135deg,#1F0D0D 0%,#1A1B22 100%)"}}>
+              <div style={{fontSize:11,color:"#6B7280",textTransform:"uppercase",letterSpacing:"1px",marginBottom:8}}>Différentiel mensuel</div>
+              <div style={{display:"flex",alignItems:"baseline",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:28,fontWeight:800,color:monthlyDiff>=0?"#00D4A4":"#FF6B6B",letterSpacing:"-0.5px"}}>
+                  {monthlyDiff>=0?"✓ ":"⚠ "}{formatCAD(monthlyDiff)}
+                  <span style={{fontSize:13,fontWeight:500,color:"#6B7280",marginLeft:6}}>/mois</span>
+                </div>
+                <div style={{textAlign:"right",fontSize:11,color:"#6B7280"}}>
+                  <div style={{color:monthlyDiff>=0?"#00D4A4":"#FF6B6B",fontWeight:600,fontSize:12}}>{(100-diffPct).toFixed(1)}% {monthlyDiff>=0?"libre":"over"}</div>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:16,marginBottom:10,flexWrap:"wrap"}}>
+                <div><div style={{fontSize:10,color:"#6B7280"}}>Revenus cibles</div><div style={{fontSize:13,fontWeight:600,color:"#00D4A4"}}>{formatCAD(monthlyIncTotal)}</div></div>
+                <div style={{width:1,background:"#2A2B35"}}/>
+                <div><div style={{fontSize:10,color:"#6B7280"}}>Dépenses budgétées</div><div style={{fontSize:13,fontWeight:600,color:"#FF6B6B"}}>{formatCAD(monthlyExpTotal)}</div></div>
+                <div style={{width:1,background:"#2A2B35"}}/>
+                <div><div style={{fontSize:10,color:"#6B7280"}}>💳 Sur carte</div>
+                  <div style={{fontSize:13,fontWeight:600,color:"#A78BFA"}}>{formatCAD(CATEGORIES.reduce((s,cat)=>{
+                    const cfg2=autoConfigs[cat.id]||{};
+                    if(!cfg2.onCC) return s;
+                    const raw=budgets[cat.id]||0;
+                    return s+(cfg2.budgetFreq==="weekly"?raw*4.33:raw);
+                  },0))}</div>
+                </div>
+              </div>
+              <div className="bar-bg" style={{height:7}}>
+                <div style={{height:"100%",width:`${diffPct}%`,borderRadius:999,background:monthlyDiff>=0?"#4F7FFF":"#FF6B6B",transition:"width .5s ease"}}/>
+              </div>
+            </div>
+
+            <div className="card" style={{padding:"12px 16px",marginBottom:12}}>
+              {CATEGORIES.map(cat=>{
+                const cfg = getAutoConfig(cat.id);
+                const isAuto = cfg.mode === "auto";
+                return (
+                  <div key={cat.id} className="cat-section">
+                    {/* Row 1: icon + name + CC toggle */}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <div style={{fontSize:18,width:26,textAlign:"center",flexShrink:0}}>{cat.label.split(" ")[0]}</div>
+                      <div style={{flex:1,fontSize:13,fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                        {cat.label.split(" ").slice(1).join(" ")}
+                      </div>
+                      {/* Credit card toggle */}
+                      {(()=>{
+                        const onCC = cfg.onCC === true;
+                        return (
+                          <button title={onCC?"Carte de crédit":"Comptant/débit"}
+                            style={{background:onCC?"#F59E0B22":"transparent",border:`1px solid ${onCC?"#F59E0B55":"#2A2B35"}`,borderRadius:7,padding:"3px 8px",cursor:"pointer",display:"flex",alignItems:"center",gap:4,flexShrink:0,transition:"all .15s"}}
+                            onClick={()=>updateAutoField(cat.id,"onCC",!onCC)}>
+                            <span style={{fontSize:13}}>💳</span>
+                            <span style={{fontSize:10,fontWeight:600,color:onCC?"#F59E0B":"#4A4B58",fontFamily:"'DM Sans',sans-serif"}}>{onCC?"CC":"–"}</span>
+                          </button>
+                        );
+                      })()}
+                    </div>
+                    {/* Row 2: amount + /mois /sem + manual/auto */}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:34}}>
+                      <input className="field-sm" type="number" placeholder="montant"
+                        style={{flex:1,textAlign:"right"}}
+                        value={budgets[cat.id]||""}
+                        onChange={e=>updateBudget(cat.id, e.target.value)} />
+                      {/* /mois vs /sem */}
+                      <div className="icon-toggle">
+                        <button className="icon-opt" title="Par mois"
+                          style={{background:cfg.budgetFreq!=="weekly"?"#4F7FFF":"transparent",color:cfg.budgetFreq!=="weekly"?"#fff":"#6B7280"}}
+                          onClick={()=>setAutoField(cat.id,"budgetFreq","monthly")}><Calendar size={12}/></button>
+                        <button className="icon-opt" title="Par semaine"
+                          style={{background:cfg.budgetFreq==="weekly"?"#4F7FFF":"transparent",color:cfg.budgetFreq==="weekly"?"#fff":"#6B7280"}}
+                          onClick={()=>setAutoField(cat.id,"budgetFreq","weekly")}><CalendarDays size={12}/></button>
+                      </div>
+                      {/* Manuel vs Auto */}
+                      <div className="icon-toggle" style={{border:isAuto?"1px solid #FFB34766":"1px solid #2A2B35"}}>
+                        <button className="icon-opt" title="Manuel"
+                          style={{background:!isAuto?"#2E2F3A":"transparent",color:!isAuto?"#E8E9F0":"#4A4B58"}}
+                          onClick={()=>setAutoField(cat.id,"mode","manual")}><Hand size={12}/></button>
+                        <button className="icon-opt" title="Auto"
+                          style={{background:isAuto?"#FFB347":"transparent",color:isAuto?"#111":"#6B7280"}}
+                          onClick={()=>setAutoField(cat.id,"mode","auto")}><Zap size={12}/></button>
+                      </div>
+
+                    </div>
+
+                    {/* Row 2: schedule config (only when auto) — freq locked to budgetFreq */}
+                    {isAuto && (
+                      <div className="sched-row">
+                        {/* Freq is locked to budgetFreq — just show day picker */}
+                        {cfg.budgetFreq!=="weekly" ? (
+                          <>
+                            <span style={{fontSize:11,color:"#6B7280",flexShrink:0,background:"#23242E",borderRadius:6,padding:"4px 8px"}}>📅 Mensuel — le</span>
+                            <select className="field-sm" style={{width:"auto"}}
+                              value={cfg.dayOfMonth||1}
+                              onChange={e=>{
+                                setAutoField(cat.id,"dayOfMonth",parseInt(e.target.value));
+                                setAutoField(cat.id,"freq","monthly");
+                              }}>
+                              {Array.from({length:28},(_,i)=>(
+                                <option key={i+1} value={i+1}>{i+1}</option>
+                              ))}
+                            </select>
+                            <span style={{fontSize:12,color:"#6B7280",flexShrink:0}}>du mois</span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{fontSize:11,color:"#6B7280",flexShrink:0,background:"#23242E",borderRadius:6,padding:"4px 8px"}}>🔁 Hebdo — chaque</span>
+                            <select className="field-sm" style={{width:"auto"}}
+                              value={cfg.dayOfWeek??4}
+                              onChange={e=>{
+                                setAutoField(cat.id,"dayOfWeek",parseInt(e.target.value));
+                                setAutoField(cat.id,"freq","weekly");
+                              }}>
+                              {WEEKDAYS_FR.map((d,i)=>(
+                                <option key={i} value={i}>{d}</option>
+                              ))}
+                            </select>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Abonnements sub-detail */}
+                    {cat.hasDetails && (
+                      <div style={{marginTop:10,marginLeft:34,display:"flex",flexDirection:"column",gap:6}}>
+                        <div style={{fontSize:10,color:"#6B7280",textTransform:"uppercase",letterSpacing:".8px",marginBottom:2}}>Détail abonnements</div>
+                        {activeSubs.map((sub,idx)=>(
+                          <div key={sub.id} style={{display:"flex",alignItems:"center",gap:8}}>
+                            <div style={{width:6,height:6,borderRadius:"50%",background:"#C77DFF",flexShrink:0}}/>
+                            <input className="field-sm" placeholder="Nom"
+                              style={{flex:1}}
+                              value={sub.label}
+                              onChange={e=>{
+                                const next=activeSubs.map((s,i)=>i===idx?{...s,label:e.target.value}:s);
+                                updateSubs(next);
+                              }} />
+                            <input className="field-sm" type="number" placeholder="0"
+                              style={{width:72,textAlign:"right"}}
+                              value={budgets[sub.id]||""}
+                              onChange={e=>updateBudget(sub.id, e.target.value)} />
+                            <button className="del-btn" onClick={()=>updateSubs(activeSubs.filter((_,i)=>i!==idx))}><X size={13}/></button>
+                          </div>
+                        ))}
+                        <button onClick={()=>updateSubs([...activeSubs,{id:`sub_${Date.now()}`,label:""}])}
+                          style={{background:"none",border:"1px dashed #3A3B47",borderRadius:8,color:"#6B7280",fontSize:12,padding:"5px 10px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",textAlign:"left",marginTop:2}}>
+                          + Ajouter un abonnement
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Legend */}
+            <div style={{display:"flex",gap:14,marginBottom:14,fontSize:11,color:"#6B7280",flexWrap:"wrap",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:4}}><Calendar size={11}/> /mois</div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}><CalendarDays size={11}/> /sem</div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}><Hand size={11}/> manuel</div>
+              <div style={{display:"flex",alignItems:"center",gap:4,color:"#FFB347"}}><Zap size={11}/> auto</div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}>💵 comptant</div>
+              <div style={{display:"flex",alignItems:"center",gap:4,color:"#A78BFA"}}>💳 carte crédit</div>
+            </div>
+
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,padding:"12px",fontSize:12,color:"#4A4B58",borderRadius:12,background:"#1A1B22",border:"1px solid #2A2B35"}}>
+              <div style={{width:7,height:7,borderRadius:"50%",background:"#00D4A4",flexShrink:0}}/>
+              Sauvegarde automatique activée
+            </div>
+          </div>
+          );
+        })()}
+
+        {/* ── REVENUS ────────────────────────────────────────── */}
+        {view==="revenus" && (
+          <div className="slide-up" style={{padding:"28px 16px 0"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,marginBottom:4}}>Revenus</div>
+            <div style={{fontSize:13,color:"#6B7280",marginBottom:20}}>Sources de revenus · montant cible · auto-saisie.</div>
+            <div className="card" style={{padding:"12px 16px",marginBottom:12}}>
+              {(incomeEdit !== null ? incomeEdit : incomeSources).map((src, idx) => {
+                const activeSrcs = incomeEdit !== null ? incomeEdit : incomeSources;
+                return (
+                  <div key={src.id} className="cat-section">
+                    {/* Row 1: label */}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                      <div style={{fontSize:18,flexShrink:0}}>{src.label.split(" ")[0]}</div>
+                      <input className="field-sm" placeholder="Nom de la source"
+                        style={{flex:1}}
+                        value={src.label.split(" ").slice(1).join(" ")}
+                        onChange={e=>{
+                          const next=activeSrcs.map((s,i)=>i===idx?{...s,label:src.label.split(" ")[0]+" "+e.target.value}:s);
+                          setIncomeEdit(next);
+                        }}/>
+                      <button className="del-btn" onClick={()=>setIncomeEdit(activeSrcs.filter((_,i)=>i!==idx))}><X size={14}/></button>
+                    </div>
+                    {/* Row 2: amount + /sem /mois + auto toggle */}
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:34}}>
+                      <input className="field-sm" type="number" placeholder="montant"
+                        style={{flex:1,textAlign:"right"}}
+                        value={src.targetAmount||""}
+                        onChange={e=>{
+                          const next=activeSrcs.map((s,i)=>i===idx?{...s,targetAmount:parseFloat(e.target.value)||0}:s);
+                          setIncomeEdit(next);
+                        }}/>
+                      {/* /sem vs /mois */}
+                      <div className="icon-toggle">
+                        <button className="icon-opt" title="Par mois"
+                          style={{background:src.targetFreq!=="weekly"?"#00D4A4":"transparent",color:src.targetFreq!=="weekly"?"#111":"#6B7280"}}
+                          onClick={()=>{const next=activeSrcs.map((s,i)=>i===idx?{...s,targetFreq:"monthly"}:s);setIncomeEdit(next);}}>
+                          <Calendar size={12}/>
+                        </button>
+                        <button className="icon-opt" title="Par semaine"
+                          style={{background:src.targetFreq==="weekly"?"#00D4A4":"transparent",color:src.targetFreq==="weekly"?"#111":"#6B7280"}}
+                          onClick={()=>{const next=activeSrcs.map((s,i)=>i===idx?{...s,targetFreq:"weekly"}:s);setIncomeEdit(next);}}>
+                          <CalendarDays size={12}/>
+                        </button>
+                      </div>
+                      {/* Manuel vs Auto */}
+                      <div className="icon-toggle" style={{border:src.auto?"1px solid #00D4A455":"1px solid #2A2B35"}}>
+                        <button className="icon-opt" title="Manuel"
+                          style={{background:!src.auto?"#2E2F3A":"transparent",color:!src.auto?"#E8E9F0":"#4A4B58"}}
+                          onClick={()=>{const next=activeSrcs.map((s,i)=>i===idx?{...s,auto:false}:s);setIncomeEdit(next);}}>
+                          <Hand size={12}/>
+                        </button>
+                        <button className="icon-opt" title="Auto"
+                          style={{background:src.auto?"#00D4A4":"transparent",color:src.auto?"#111":"#6B7280"}}
+                          onClick={()=>{const next=activeSrcs.map((s,i)=>i===idx?{...s,auto:true}:s);setIncomeEdit(next);}}>
+                          <Zap size={12}/>
+                        </button>
+                      </div>
+                    </div>
+                    {/* Row 3: schedule if auto */}
+                    {src.auto && (
+                      <div className="sched-row">
+                        {src.targetFreq!=="weekly" ? (
+                          <>
+                            <span style={{fontSize:11,color:"#6B7280",background:"#23242E",borderRadius:6,padding:"4px 8px",flexShrink:0}}>📅 Mensuel — le</span>
+                            <select className="field-sm" style={{width:"auto"}}
+                              value={src.dayOfMonth||1}
+                              onChange={e=>{const next=activeSrcs.map((s,i)=>i===idx?{...s,dayOfMonth:parseInt(e.target.value)}:s);setIncomeEdit(next);}}>
+                              {Array.from({length:28},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}
+                            </select>
+                            <span style={{fontSize:12,color:"#6B7280",flexShrink:0}}>du mois</span>
+                          </>
+                        ) : (
+                          <>
+                            <span style={{fontSize:11,color:"#6B7280",background:"#23242E",borderRadius:6,padding:"4px 8px",flexShrink:0}}>🔁 Hebdo — chaque</span>
+                            <select className="field-sm" style={{width:"auto"}}
+                              value={src.dayOfWeek??4}
+                              onChange={e=>{const next=activeSrcs.map((s,i)=>i===idx?{...s,dayOfWeek:parseInt(e.target.value)}:s);setIncomeEdit(next);}}>
+                              {WEEKDAYS_FR.map((d,i)=><option key={i} value={i}>{d}</option>)}
+                            </select>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <button onClick={()=>{
+                const base = incomeEdit !== null ? incomeEdit : incomeSources;
+                setIncomeEdit([...base,{id:`inc_${Date.now()}`,label:"💵 Nouvelle source",targetAmount:0,targetFreq:"weekly",auto:false,dayOfWeek:4}]);
+              }} style={{background:"none",border:"1px dashed #3A3B47",borderRadius:8,color:"#6B7280",fontSize:12,padding:"8px 12px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",width:"100%",marginTop:8,textAlign:"left"}}>
+                + Ajouter une source de revenus
+              </button>
+            </div>
+            {/* Legend */}
+            <div style={{display:"flex",gap:14,marginBottom:14,fontSize:11,color:"#6B7280",flexWrap:"wrap",alignItems:"center"}}>
+              <div style={{display:"flex",alignItems:"center",gap:4}}><Calendar size={11}/> /mois</div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}><CalendarDays size={11}/> /semaine</div>
+              <div style={{display:"flex",alignItems:"center",gap:4}}><Hand size={11}/> manuel</div>
+              <div style={{display:"flex",alignItems:"center",gap:4,color:"#00D4A4"}}><Zap size={11}/> auto</div>
+            </div>
+            <button onClick={()=>saveIncomeSources(incomeEdit !== null ? incomeEdit : incomeSources)}
+              style={{background:"#00D4A4",color:"#111",border:"none",borderRadius:12,padding:"14px",fontSize:15,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",width:"100%"}}>
+              Sauvegarder
+            </button>
+          </div>
+        )}
+
+        {/* ── SETTINGS / DONNÉES ──────────────────────────── */}
+        {view==="settings" && (
+          <div className="slide-up" style={{padding:"28px 16px 0"}}>
+            <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,marginBottom:6}}>Données</div>
+            <div style={{fontSize:13,color:"#6B7280",marginBottom:24}}>Exporte ton data pour le conserver entre les mises à jour de l'app.</div>
+
+            {/* Export */}
+            <div className="card" style={{padding:"20px",marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                <div style={{width:40,height:40,borderRadius:12,background:"#4F7FFF20",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Download size={18} color="#4F7FFF"/></div>
+                <div>
+                  <div style={{fontSize:14,fontWeight:600}}>Exporter</div>
+                  <div style={{fontSize:12,color:"#6B7280",marginTop:2}}>Télécharge un fichier .json avec toutes tes transactions, budgets et config.</div>
+                </div>
+              </div>
+              <button onClick={exportData}
+                style={{background:"#4F7FFF",color:"#fff",border:"none",borderRadius:10,padding:"12px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                <Download size={15}/> Exporter mes données
+              </button>
+            </div>
+
+            {/* Import */}
+            <div className="card" style={{padding:"20px",marginBottom:24}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
+                <div style={{width:40,height:40,borderRadius:12,background:"#00D4A420",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Upload size={18} color="#00D4A4"/></div>
+                <div>
+                  <div style={{fontSize:14,fontWeight:600}}>Importer</div>
+                  <div style={{fontSize:12,color:"#6B7280",marginTop:2}}>Restaure un export précédent. ⚠️ Remplace toutes les données actuelles.</div>
+                </div>
+              </div>
+              <label style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,background:"#23242E",border:"1px solid #2E2F3A",borderRadius:10,padding:"12px",fontSize:14,fontWeight:600,cursor:"pointer",color:"#E8E9F0",fontFamily:"'DM Sans',sans-serif",width:"100%"}}>
+                <Upload size={15}/> Choisir un fichier .json
+                <input type="file" accept=".json" style={{display:"none"}} onChange={e=>importData(e.target.files[0])}/>
+              </label>
+            </div>
+
+            <div style={{fontSize:11,color:"#4A4B58",textAlign:"center",lineHeight:1.6,marginBottom:16}}>
+              💡 Après une mise à jour de l'app, importe ton dernier export pour retrouver toutes tes données.
+            </div>
+
+            {/* Clear cache */}
+            <div className="card" style={{padding:"20px",borderColor:"#EF444422"}}>
+              <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>Vider le cache</div>
+              <div style={{fontSize:12,color:"#6B7280",marginBottom:12}}>Efface toutes les données sauvegardées et repart avec les valeurs par défaut. ⚠️ Irréversible.</div>
+              <button onClick={()=>{ if(window.confirm("Vider toutes les données? Cette action est irréversible.")) clearAllData(); }}
+                style={{background:"#EF444422",color:"#EF4444",border:"1px solid #EF444433",borderRadius:10,padding:"11px",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",width:"100%"}}>
+                🗑️ Vider le cache
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* NAV */}
+        <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:"#13141A",borderTop:"1px solid #2A2B35",display:"flex",justifyContent:"space-around",padding:"6px 0",zIndex:100}}>
+          {[
+            {id:"dashboard",icon:<Wallet size={20}/>,      label:"Aperçu"},
+            {id:"add",      icon:<PlusCircle size={20}/>,  label:"Ajouter"},
+            {id:"history",  icon:<BarChart3 size={20}/>,   label:"Historique"},
+            {id:"revenus",  icon:<DollarSign size={20}/>,  label:"Revenus"},
+            {id:"budgets",  icon:<TrendingUp size={20}/>,  label:"Budgets"},
+          ].map(n=>(
+            <button key={n.id} className="nav-btn"
+              style={{color:view===n.id?"#4F7FFF":"#6B7280",background:view===n.id?"#4F7FFF18":"none"}}
+              onClick={()=>setView(n.id)}>
+              {n.icon}
+              <span>{n.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(BudgetTracker));
+  </script>
+</body>
+</html>
